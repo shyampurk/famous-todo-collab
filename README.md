@@ -1,2 +1,1 @@
-# famous-todo-collab
-Collaborative ToDo App with Famous Javascript Framework
+#Collaborative ToDo App with Famous Javascript Framework
