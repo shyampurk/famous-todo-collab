@@ -313,7 +313,513 @@ Camera.prototype.onTransformChange = function onTransformChange(transform) {
 
 module.exports = Camera;
 
-},{"../core/Commands":6}],2:[function(require,module,exports){
+},{"../core/Commands":7}],2:[function(require,module,exports){
+/**
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015 Famous Industries Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+'use strict';
+
+var CallbackStore = require('../utilities/CallbackStore');
+var Vec2 = require('../math/Vec2');
+
+var VEC_REGISTER = new Vec2();
+
+var gestures = {drag: true, tap: true, rotate: true, pinch: true};
+
+/**
+ * Component to manage gesture events. Will track 'pinch', 'rotate', 'tap', and 'drag' events, on an
+ * as-requested basis.
+ *
+ * @class GestureHandler
+ *
+ * @param {Node} node The node with which to register the handler.
+ * @param {Array} events An array of event objects specifying .event and .callback properties.
+ */
+function GestureHandler(node, events) {
+    this.node = node;
+    this.id = node.addComponent(this);
+
+    this._events = new CallbackStore();
+
+    this.last1 = new Vec2();
+    this.last2 = new Vec2();
+
+    this.delta1 = new Vec2();
+    this.delta2 = new Vec2();
+
+    this.velocity1 = new Vec2();
+    this.velocity2 = new Vec2();
+
+    this.dist = 0;
+    this.diff12 = new Vec2();
+
+    this.center = new Vec2();
+    this.centerDelta = new Vec2();
+    this.centerVelocity = new Vec2();
+
+    this.pointer1 = {
+        position: this.last1,
+        delta: this.delta1,
+        velocity: this.velocity1
+    };
+
+    this.pointer2 = {
+        position: this.last2,
+        delta: this.delta2,
+        velocity: this.velocity2
+    };
+
+    this.event = {
+        status: null,
+        time: 0,
+        pointers: [],
+        center: this.center,
+        centerDelta: this.centerDelta,
+        centerVelocity: this.centerVelocity,
+        points: 0,
+        current: 0
+    };
+
+    this.trackedPointerIDs = [-1, -1];
+    this.timeOfPointer = 0;
+    this.multiTap = 0;
+
+    this.mice = [];
+
+    this.gestures = [];
+    this.options = {};
+    this.trackedGestures = {};
+
+    var i;
+    var len;
+
+    if (events) {
+        for (i = 0, len = events.length; i < len; i++) {
+            this.on(events[i], events[i].callback);
+        }
+    }
+
+    node.addUIEvent('touchstart');
+    node.addUIEvent('mousedown');
+    node.addUIEvent('touchmove');
+    node.addUIEvent('mousemove');
+    node.addUIEvent('touchend');
+    node.addUIEvent('mouseup');
+    node.addUIEvent('mouseleave');
+}
+
+
+/**
+ * onReceive fires when the node this component is attached to gets an event.
+ *
+ * @method
+ *
+ * @param {String} ev name of the event
+ * @param {Object} payload data associated with the event
+ *
+ * @return {undefined} undefined
+ */
+GestureHandler.prototype.onReceive = function onReceive (ev, payload) {
+    switch(ev) {
+        case 'touchstart':
+        case 'mousedown':
+            _processPointerStart.call(this, payload);
+            break;
+        case 'touchmove':
+        case 'mousemove':
+            _processPointerMove.call(this, payload);
+            break;
+        case 'touchend':
+        case 'mouseup':
+            _processPointerEnd.call(this, payload);
+            break;
+        case 'mouseleave':
+            _processMouseLeave.call(this, payload);
+            break;
+        default:
+            break;
+    }
+};
+
+/**
+ * Return the name of the GestureHandler component
+ *
+ * @method
+ *
+ * @return {String} Name of the component
+ */
+GestureHandler.prototype.toString = function toString() {
+    return 'GestureHandler';
+};
+
+/**
+ * Register a callback to be invoked on an event.
+ *
+ * @method
+ *
+ * @param {Object|String} ev The event object or event name.
+ * @param {Function} cb The callback
+ *
+ * @return {undefined} undefined
+ */
+GestureHandler.prototype.on = function on(ev, cb) {
+    var gesture = ev.event || ev;
+    if (gestures[gesture]) {
+        this.trackedGestures[gesture] = true;
+        this.gestures.push(gesture);
+        if (ev.event) this.options[gesture] = ev;
+        this._events.on(gesture, cb);
+    }
+};
+
+/**
+ * Trigger gestures in the order they were requested, if they occurred.
+ *
+ * @method
+ *
+ * @return {undefined} undefined
+ */
+GestureHandler.prototype.triggerGestures = function() {
+    var payload = this.event;
+    for (var i = 0, len = this.gestures.length; i < len; i++) {
+        var gesture = this.gestures[i];
+        switch (gesture) {
+            case 'rotate':
+            case 'pinch':
+                if (payload.points === 2) this.trigger(gesture, payload);
+                break;
+            case 'tap':
+                if (payload.status === 'start') {
+                    if (this.options.tap) {
+                        var pts = this.options.tap.points || 1;
+                        if(this.multiTap >= pts && payload.points >= pts) this.trigger(gesture, payload);
+                    }
+                    else this.trigger(gesture, payload);
+                }
+                break;
+            default:
+                this.trigger(gesture, payload);
+                break;
+        }
+    }
+};
+
+/**
+ * Trigger the callback associated with an event, passing in a payload.
+ *
+ * @method trigger
+ *
+ * @param {String} ev The event name
+ * @param {Object} payload The event payload
+ *
+ * @return {undefined} undefined
+ */
+GestureHandler.prototype.trigger = function trigger (ev, payload) {
+    this._events.trigger(ev, payload);
+};
+
+/**
+ * Process up to the first two touch/mouse move events. Exit out if the first two points are already being tracked.
+ *
+ * @method _processPointerStart
+ * @private
+ *
+ * @param {Object} e The event object
+ *
+ * @return {undefined} undefined
+ */
+function _processPointerStart(e) {
+    var t;
+    if (!e.targetTouches) {
+        this.mice[0] = e;
+        t = this.mice;
+        e.identifier = 1;
+    }
+    else t = e.targetTouches;
+
+    if (t[0] && t[1] && this.trackedPointerIDs[0] === t[0].identifier && this.trackedPointerIDs[1] === t[1].identifier) {
+        return;
+    }
+
+    this.event.time = Date.now();
+
+    var threshold;
+    var id;
+
+    if (this.trackedPointerIDs[0] !== t[0].identifier) {
+        if (this.trackedGestures.tap) {
+            threshold = (this.options.tap && this.options.tap.threshold) || 250;
+            if (this.event.time - this.timeOfPointer < threshold) this.event.taps++;
+            else this.event.taps = 1;
+            this.timeOfPointer = this.event.time;
+            this.multiTap = 1;
+        }
+        this.event.current = 1;
+        this.event.points = 1;
+        id = t[0].identifier;
+        this.trackedPointerIDs[0] = id;
+
+        this.last1.set(t[0].pageX, t[0].pageY);
+        this.velocity1.clear();
+        this.delta1.clear();
+        this.event.pointers.push(this.pointer1);
+    }
+    if (t[1] && this.trackedPointerIDs[1] !== t[1].identifier) {
+        if (this.trackedGestures.tap) {
+            threshold = (this.options.tap && this.options.tap.threshold) || 250;
+            if (this.event.time - this.timeOfPointer < threshold) this.multiTap = 2;
+        }
+        this.event.current = 2;
+        this.event.points = 2;
+        id = t[1].identifier;
+        this.trackedPointerIDs[1] = id;
+
+        this.last2.set(t[1].pageX, t[1].pageY);
+        this.velocity2.clear();
+        this.delta2.clear();
+
+        Vec2.add(this.last1, this.last2, this.center).scale(0.5);
+        this.centerDelta.clear();
+        this.centerVelocity.clear();
+
+        Vec2.subtract(this.last2, this.last1, this.diff12);
+        this.dist = this.diff12.length();
+
+        if (this.trackedGestures.pinch) {
+            this.event.scale = this.event.scale || 1;
+            this.event.scaleDelta = 0;
+            this.event.scaleVelocity = 0;
+        }
+        if (this.trackedGestures.rotate) {
+            this.event.rotation = this.event.rotation || 0;
+            this.event.rotationDelta = 0;
+            this.event.rotationVelocity = 0;
+        }
+        this.event.pointers.push(this.pointer2);
+    }
+
+    this.event.status = 'start';
+    if (this.event.points === 1) {
+        this.center.copy(this.last1);
+        this.centerDelta.clear();
+        this.centerVelocity.clear();
+        if (this.trackedGestures.pinch) {
+            this.event.scale = 1;
+            this.event.scaleDelta = 0;
+            this.event.scaleVelocity = 0;
+        }
+        if (this.trackedGestures.rotate) {
+            this.event.rotation = 0;
+            this.event.rotationDelta = 0;
+            this.event.rotationVelocity = 0;
+        }
+    }
+    this.triggerGestures();
+}
+
+/**
+ * Process up to the first two touch/mouse move events.
+ *
+ * @method _processPointerMove
+ * @private
+ *
+ * @param {Object} e The event object.
+ *
+ * @return {undefined} undefined
+ */
+function _processPointerMove(e) {
+    var t;
+    if (!e.targetTouches) {
+        if (!this.event.current) return;
+        this.mice[0] = e;
+        t = this.mice;
+        e.identifier = 1;
+    }
+    else t = e.targetTouches;
+
+    var time = Date.now();
+    var dt = time - this.event.time;
+    if (dt === 0) return;
+    var invDt = 1000 / dt;
+    this.event.time = time;
+
+    this.event.current = 1;
+    this.event.points = 1;
+    if (this.trackedPointerIDs[0] === t[0].identifier) {
+        VEC_REGISTER.set(t[0].pageX, t[0].pageY);
+        Vec2.subtract(VEC_REGISTER, this.last1, this.delta1);
+        Vec2.scale(this.delta1, invDt, this.velocity1);
+        this.last1.copy(VEC_REGISTER);
+
+    }
+    if (t[1]) {
+        this.event.current = 2;
+        this.event.points = 2;
+        VEC_REGISTER.set(t[1].pageX, t[1].pageY);
+        Vec2.subtract(VEC_REGISTER, this.last2, this.delta2);
+        Vec2.scale(this.delta2, invDt, this.velocity2);
+        this.last2.copy(VEC_REGISTER);
+
+        Vec2.add(this.last1, this.last2, VEC_REGISTER).scale(0.5);
+        Vec2.subtract(VEC_REGISTER, this.center, this.centerDelta);
+        Vec2.add(this.velocity1, this.velocity2, this.centerVelocity).scale(0.5);
+        this.center.copy(VEC_REGISTER);
+
+        Vec2.subtract(this.last2, this.last1, VEC_REGISTER);
+
+        if (this.trackedGestures.rotate) {
+            var dot = VEC_REGISTER.dot(this.diff12);
+            var cross = VEC_REGISTER.cross(this.diff12);
+            var theta = -Math.atan2(cross, dot);
+            this.event.rotation += theta;
+            this.event.rotationDelta = theta;
+            this.event.rotationVelocity = theta * invDt;
+        }
+
+        var dist = VEC_REGISTER.length();
+        var scale = dist / this.dist;
+        this.diff12.copy(VEC_REGISTER);
+        this.dist = dist;
+
+        if (this.trackedGestures.pinch) {
+            this.event.scale *= scale;
+            scale -= 1.0;
+            this.event.scaleDelta = scale;
+            this.event.scaleVelocity = scale * invDt;
+        }
+    }
+
+    this.event.status = 'move';
+    if (this.event.points === 1) {
+        this.center.copy(this.last1);
+        this.centerDelta.copy(this.delta1);
+        this.centerVelocity.copy(this.velocity1);
+        if (this.trackedGestures.pinch) {
+            this.event.scale = 1;
+            this.event.scaleDelta = 0;
+            this.event.scaleVelocity = 0;
+        }
+        if (this.trackedGestures.rotate) {
+            this.event.rotation = 0;
+            this.event.rotationDelta = 0;
+            this.event.rotationVelocity = 0;
+        }
+    }
+    this.triggerGestures();
+}
+
+/**
+ * Process up to the first two touch/mouse end events. Exit out if the two points being tracked are still active.
+ *
+ * @method _processPointerEnd
+ * @private
+ *
+ * @param {Object} e The event object
+ *
+ * @return {undefined} undefined
+ */
+function _processPointerEnd(e) {
+    var t;
+    if (!e.targetTouches) {
+        if (!this.event.current) return;
+        this.mice.pop();
+        t = this.mice;
+    }
+    else t = e.targetTouches;
+
+    if (t[0] && t[1] && this.trackedPointerIDs[0] === t[0].identifier && this.trackedPointerIDs[1] === t[1].identifier) {
+            return;
+    }
+
+    var id;
+
+    this.event.status = 'end';
+    if (!t[0]) {
+        this.event.current = 0;
+        this.trackedPointerIDs[0] = -1;
+        this.trackedPointerIDs[1] = -1;
+        this.triggerGestures();
+        this.event.pointers.pop();
+        this.event.pointers.pop();
+        return;
+    }
+    else if(this.trackedPointerIDs[0] !== t[0].identifier) {
+        this.trackedPointerIDs[0] = -1;
+        id = t[0].identifier;
+        this.trackedPointerIDs[0] = id;
+
+        this.last1.set(t[0].pageX, t[0].pageY);
+        this.velocity1.clear();
+        this.delta1.clear();
+    }
+    if (!t[1]) {
+        this.event.current = 1;
+        this.trackedPointerIDs[1] = -1;
+        this.triggerGestures();
+        this.event.points = 1;
+        this.event.pointers.pop();
+    }
+    else if (this.trackedPointerIDs[1] !== t[1].identifier) {
+        this.trackedPointerIDs[1] = -1;
+        this.event.points = 2;
+        id = t[1].identifier;
+        this.trackedPointerIDs[1] = id;
+
+        this.last2.set(t[1].pageX, t[1].pageY);
+        this.velocity2.clear();
+        this.delta2.clear();
+
+        Vec2.add(this.last1, this.last2, this.center).scale(0.5);
+        this.centerDelta.clear();
+        this.centerVelocity.clear();
+
+        Vec2.subtract(this.last2, this.last1, this.diff12);
+        this.dist = this.diff12.length();
+    }
+}
+
+/**
+ * Treats a mouseleave event as a gesture end.
+ *
+ * @method _processMouseLeave
+ * @private
+ *
+ * @return {undefined} undefined
+ */
+function _processMouseLeave() {
+    if (this.event.current) {
+        this.event.status = 'end';
+        this.event.current = 0;
+        this.trackedPointerIDs[0] = -1;
+        this.triggerGestures();
+        this.event.pointers.pop();
+    }
+}
+
+module.exports = GestureHandler;
+
+},{"../math/Vec2":34,"../utilities/CallbackStore":44}],3:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  * 
@@ -600,7 +1106,7 @@ Position.prototype.halt = function halt() {
 
 module.exports = Position;
 
-},{"../transitions/Transitionable":41}],3:[function(require,module,exports){
+},{"../transitions/Transitionable":43}],4:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  * 
@@ -1010,7 +1516,7 @@ Size.prototype.halt = function halt () {
 
 module.exports = Size;
 
-},{"../transitions/Transitionable":41}],4:[function(require,module,exports){
+},{"../transitions/Transitionable":43}],5:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -1127,7 +1633,7 @@ Channel.prototype.postMessage = function postMessage(message) {
 
 module.exports = Channel;
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -1337,7 +1843,7 @@ Clock.prototype.clearTimer = function (timer) {
 module.exports = Clock;
 
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -1408,7 +1914,7 @@ var Commands = {
 
 module.exports = Commands;
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -1820,7 +2326,7 @@ function _splitTo (string, target) {
 
 module.exports = new Dispatch();
 
-},{"./Event":8,"./Path":11}],8:[function(require,module,exports){
+},{"./Event":9,"./Path":12}],9:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  * 
@@ -1873,7 +2379,7 @@ function stopPropagation () {
 module.exports = Event;
 
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -2338,7 +2844,7 @@ FamousEngine.prototype.stopEngine = function stopEngine() {
 
 module.exports = new FamousEngine();
 
-},{"../render-loops/RequestAnimationFrameLoop":35,"../renderers/Compositor":36,"../renderers/UIManager":38,"./Channel":4,"./Clock":5,"./Commands":6,"./Dispatch":7,"./Scene":13,"./SizeSystem":15,"./TransformSystem":17}],10:[function(require,module,exports){
+},{"../render-loops/RequestAnimationFrameLoop":37,"../renderers/Compositor":38,"../renderers/UIManager":40,"./Channel":5,"./Clock":6,"./Commands":7,"./Dispatch":8,"./Scene":14,"./SizeSystem":16,"./TransformSystem":18}],11:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -3587,7 +4093,7 @@ Node.prototype.dismount = function dismount () {
 
 module.exports = Node;
 
-},{"./Dispatch":7,"./Size":14,"./SizeSystem":15,"./Transform":16,"./TransformSystem":17}],11:[function(require,module,exports){
+},{"./Dispatch":8,"./Size":15,"./SizeSystem":16,"./Transform":17,"./TransformSystem":18}],12:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  * 
@@ -3761,7 +4267,7 @@ PathUtils.prototype.getSelector = function getSelector(path) {
 module.exports = new PathUtils();
 
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -3930,7 +4436,7 @@ PathStore.prototype.getPaths = function getPaths () {
 
 module.exports = PathStore;
 
-},{"./Path":11}],13:[function(require,module,exports){
+},{"./Path":12}],14:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -4083,7 +4589,7 @@ Scene.prototype.mount = function mount (path) {
 
 module.exports = Scene;
 
-},{"./Commands":6,"./Dispatch":7,"./Node":10,"./SizeSystem":15,"./TransformSystem":17}],14:[function(require,module,exports){
+},{"./Commands":7,"./Dispatch":8,"./Node":11,"./SizeSystem":16,"./TransformSystem":18}],15:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -4417,7 +4923,7 @@ Size.prototype.fromComponents = function fromComponents (components) {
 module.exports = Size;
 
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  * 
@@ -4690,7 +5196,7 @@ function sizeChanged (node, components, size) {
 
 module.exports = new SizeSystem();
 
-},{"./Dispatch":7,"./Path":11,"./PathStore":12,"./Size":14}],16:[function(require,module,exports){
+},{"./Dispatch":8,"./Path":12,"./PathStore":13,"./Size":15}],17:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -5463,7 +5969,7 @@ function multiply (out, a, b) {
 
 module.exports = Transform;
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  * 
@@ -5825,7 +6331,7 @@ function worldTransformChanged (node, components, transform) {
 module.exports = new TransformSystem();
 
 
-},{"./Dispatch":7,"./Path":11,"./PathStore":12,"./Transform":16}],18:[function(require,module,exports){
+},{"./Dispatch":8,"./Path":12,"./PathStore":13,"./Transform":17}],19:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -6519,7 +7025,7 @@ DOMElement.prototype.draw = function draw() {
 
 module.exports = DOMElement;
 
-},{"../core/Commands":6,"../core/TransformSystem":17,"../utilities/CallbackStore":42}],19:[function(require,module,exports){
+},{"../core/Commands":7,"../core/TransformSystem":18,"../utilities/CallbackStore":44}],20:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7245,7 +7751,7 @@ DOMRenderer.prototype._stringifyMatrix = function _stringifyMatrix(m) {
 
 module.exports = DOMRenderer;
 
-},{"../core/Path":11,"../utilities/vendorPrefix":45,"./ElementCache":20,"./Math":21,"./events/EventMap":25}],20:[function(require,module,exports){
+},{"../core/Path":12,"../utilities/vendorPrefix":47,"./ElementCache":21,"./Math":22,"./events/EventMap":26}],21:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7310,7 +7816,7 @@ function ElementCache (element, path) {
 
 module.exports = ElementCache;
 
-},{"./VoidElements":22}],21:[function(require,module,exports){
+},{"./VoidElements":23}],22:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7496,7 +8002,7 @@ module.exports = {
     invert: invert
 };
 
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7549,7 +8055,7 @@ var VoidElements = {
 
 module.exports = VoidElements;
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7617,7 +8123,7 @@ CompositionEvent.prototype.toString = function toString () {
 
 module.exports = CompositionEvent;
 
-},{"./UIEvent":31}],24:[function(require,module,exports){
+},{"./UIEvent":32}],25:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7737,7 +8243,7 @@ Event.prototype.toString = function toString () {
 
 module.exports = Event;
 
-},{}],25:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7828,7 +8334,7 @@ var EventMap = {
 
 module.exports = EventMap;
 
-},{"./CompositionEvent":23,"./Event":24,"./FocusEvent":26,"./InputEvent":27,"./KeyboardEvent":28,"./MouseEvent":29,"./TouchEvent":30,"./UIEvent":31,"./WheelEvent":32}],26:[function(require,module,exports){
+},{"./CompositionEvent":24,"./Event":25,"./FocusEvent":27,"./InputEvent":28,"./KeyboardEvent":29,"./MouseEvent":30,"./TouchEvent":31,"./UIEvent":32,"./WheelEvent":33}],27:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7890,7 +8396,7 @@ FocusEvent.prototype.toString = function toString () {
 
 module.exports = FocusEvent;
 
-},{"./UIEvent":31}],27:[function(require,module,exports){
+},{"./UIEvent":32}],28:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7981,7 +8487,7 @@ InputEvent.prototype.toString = function toString () {
 
 module.exports = InputEvent;
 
-},{"./UIEvent":31}],28:[function(require,module,exports){
+},{"./UIEvent":32}],29:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -8142,7 +8648,7 @@ KeyboardEvent.prototype.toString = function toString () {
 
 module.exports = KeyboardEvent;
 
-},{"./UIEvent":31}],29:[function(require,module,exports){
+},{"./UIEvent":32}],30:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -8312,7 +8818,7 @@ MouseEvent.prototype.toString = function toString () {
 
 module.exports = MouseEvent;
 
-},{"./UIEvent":31}],30:[function(require,module,exports){
+},{"./UIEvent":32}],31:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -8510,7 +9016,7 @@ TouchEvent.prototype.toString = function toString () {
 
 module.exports = TouchEvent;
 
-},{"./UIEvent":31}],31:[function(require,module,exports){
+},{"./UIEvent":32}],32:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -8578,7 +9084,7 @@ UIEvent.prototype.toString = function toString () {
 
 module.exports = UIEvent;
 
-},{"./Event":24}],32:[function(require,module,exports){
+},{"./Event":25}],33:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -8689,7 +9195,378 @@ WheelEvent.prototype.toString = function toString () {
 
 module.exports = WheelEvent;
 
-},{"./MouseEvent":29}],33:[function(require,module,exports){
+},{"./MouseEvent":30}],34:[function(require,module,exports){
+/**
+ * The MIT License (MIT)
+ *
+ * Copyright (c) 2015 Famous Industries Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ */
+
+'use strict';
+
+/**
+ * A two-dimensional vector.
+ *
+ * @class Vec2
+ *
+ * @param {Number} x The x component.
+ * @param {Number} y The y component.
+ */
+var Vec2 = function(x, y) {
+    if (x instanceof Array || x instanceof Float32Array) {
+        this.x = x[0] || 0;
+        this.y = x[1] || 0;
+    }
+    else {
+        this.x = x || 0;
+        this.y = y || 0;
+    }
+};
+
+/**
+ * Set the components of the current Vec2.
+ *
+ * @method
+ *
+ * @param {Number} x The x component.
+ * @param {Number} y The y component.
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.set = function set(x, y) {
+    if (x != null) this.x = x;
+    if (y != null) this.y = y;
+    return this;
+};
+
+/**
+ * Add the input v to the current Vec2.
+ *
+ * @method
+ *
+ * @param {Vec2} v The Vec2 to add.
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.add = function add(v) {
+    this.x += v.x;
+    this.y += v.y;
+    return this;
+};
+
+/**
+ * Subtract the input v from the current Vec2.
+ *
+ * @method
+ *
+ * @param {Vec2} v The Vec2 to subtract.
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.subtract = function subtract(v) {
+    this.x -= v.x;
+    this.y -= v.y;
+    return this;
+};
+
+/**
+ * Scale the current Vec2 by a scalar or Vec2.
+ *
+ * @method
+ *
+ * @param {Number|Vec2} s The Number or vec2 by which to scale.
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.scale = function scale(s) {
+    if (s instanceof Vec2) {
+        this.x *= s.x;
+        this.y *= s.y;
+    }
+    else {
+        this.x *= s;
+        this.y *= s;
+    }
+    return this;
+};
+
+/**
+ * Rotate the Vec2 counter-clockwise by theta about the z-axis.
+ *
+ * @method
+ *
+ * @param {Number} theta Angle by which to rotate.
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.rotate = function(theta) {
+    var x = this.x;
+    var y = this.y;
+
+    var cosTheta = Math.cos(theta);
+    var sinTheta = Math.sin(theta);
+
+    this.x = x * cosTheta - y * sinTheta;
+    this.y = x * sinTheta + y * cosTheta;
+
+    return this;
+};
+
+/**
+ * The dot product of of the current Vec2 with the input Vec2.
+ *
+ * @method
+ *
+ * @param {Number} v The other Vec2.
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.dot = function(v) {
+    return this.x * v.x + this.y * v.y;
+};
+
+/**
+ * The cross product of of the current Vec2 with the input Vec2.
+ *
+ * @method
+ *
+ * @param {Number} v The other Vec2.
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.cross = function(v) {
+    return this.x * v.y - this.y * v.x;
+};
+
+/**
+ * Preserve the magnitude but invert the orientation of the current Vec2.
+ *
+ * @method
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.invert = function invert() {
+    this.x *= -1;
+    this.y *= -1;
+    return this;
+};
+
+/**
+ * Apply a function component-wise to the current Vec2.
+ *
+ * @method
+ *
+ * @param {Function} fn Function to apply.
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.map = function map(fn) {
+    this.x = fn(this.x);
+    this.y = fn(this.y);
+    return this;
+};
+
+/**
+ * Get the magnitude of the current Vec2.
+ *
+ * @method
+ *
+ * @return {Number} the length of the vector
+ */
+Vec2.prototype.length = function length() {
+    var x = this.x;
+    var y = this.y;
+
+    return Math.sqrt(x * x + y * y);
+};
+
+/**
+ * Copy the input onto the current Vec2.
+ *
+ * @method
+ *
+ * @param {Vec2} v Vec2 to copy
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.copy = function copy(v) {
+    this.x = v.x;
+    this.y = v.y;
+    return this;
+};
+
+/**
+ * Reset the current Vec2.
+ *
+ * @method
+ *
+ * @return {Vec2} this
+ */
+Vec2.prototype.clear = function clear() {
+    this.x = 0;
+    this.y = 0;
+    return this;
+};
+
+/**
+ * Check whether the magnitude of the current Vec2 is exactly 0.
+ *
+ * @method
+ *
+ * @return {Boolean} whether or not the length is 0
+ */
+Vec2.prototype.isZero = function isZero() {
+    if (this.x !== 0 || this.y !== 0) return false;
+    else return true;
+};
+
+/**
+ * The array form of the current Vec2.
+ *
+ * @method
+ *
+ * @return {Array} the Vec to as an array
+ */
+Vec2.prototype.toArray = function toArray() {
+    return [this.x, this.y];
+};
+
+/**
+ * Normalize the input Vec2.
+ *
+ * @method
+ *
+ * @param {Vec2} v The reference Vec2.
+ * @param {Vec2} output Vec2 in which to place the result.
+ *
+ * @return {Vec2} The normalized Vec2.
+ */
+Vec2.normalize = function normalize(v, output) {
+    var x = v.x;
+    var y = v.y;
+
+    var length = Math.sqrt(x * x + y * y) || 1;
+    length = 1 / length;
+    output.x = v.x * length;
+    output.y = v.y * length;
+
+    return output;
+};
+
+/**
+ * Clone the input Vec2.
+ *
+ * @method
+ *
+ * @param {Vec2} v The Vec2 to clone.
+ *
+ * @return {Vec2} The cloned Vec2.
+ */
+Vec2.clone = function clone(v) {
+    return new Vec2(v.x, v.y);
+};
+
+/**
+ * Add the input Vec2's.
+ *
+ * @method
+ *
+ * @param {Vec2} v1 The left Vec2.
+ * @param {Vec2} v2 The right Vec2.
+ * @param {Vec2} output Vec2 in which to place the result.
+ *
+ * @return {Vec2} The result of the addition.
+ */
+Vec2.add = function add(v1, v2, output) {
+    output.x = v1.x + v2.x;
+    output.y = v1.y + v2.y;
+
+    return output;
+};
+
+/**
+ * Subtract the second Vec2 from the first.
+ *
+ * @method
+ *
+ * @param {Vec2} v1 The left Vec2.
+ * @param {Vec2} v2 The right Vec2.
+ * @param {Vec2} output Vec2 in which to place the result.
+ *
+ * @return {Vec2} The result of the subtraction.
+ */
+Vec2.subtract = function subtract(v1, v2, output) {
+    output.x = v1.x - v2.x;
+    output.y = v1.y - v2.y;
+    return output;
+};
+
+/**
+ * Scale the input Vec2.
+ *
+ * @method
+ *
+ * @param {Vec2} v The reference Vec2.
+ * @param {Number} s Number to scale by.
+ * @param {Vec2} output Vec2 in which to place the result.
+ *
+ * @return {Vec2} The result of the scaling.
+ */
+Vec2.scale = function scale(v, s, output) {
+    output.x = v.x * s;
+    output.y = v.y * s;
+    return output;
+};
+
+/**
+ * The dot product of the input Vec2's.
+ *
+ * @method
+ *
+ * @param {Vec2} v1 The left Vec2.
+ * @param {Vec2} v2 The right Vec2.
+ *
+ * @return {Number} The dot product.
+ */
+Vec2.dot = function dot(v1, v2) {
+    return v1.x * v2.x + v1.y * v2.y;
+};
+
+/**
+ * The cross product of the input Vec2's.
+ *
+ * @method
+ *
+ * @param {Number} v1 The left Vec2.
+ * @param {Number} v2 The right Vec2.
+ *
+ * @return {Number} The z-component of the cross product.
+ */
+Vec2.cross = function(v1,v2) {
+    return v1.x * v2.y - v1.y * v2.x;
+};
+
+module.exports = Vec2;
+
+},{}],35:[function(require,module,exports){
 // http://paulirish.com/2011/requestanimationframe-for-smart-animating/
 // http://my.opera.com/emoller/blog/2011/12/20/requestanimationframe-for-smart-er-animating
 // requestAnimationFrame polyfill by Erik Möller. fixes from Paul Irish and Tino Zijdel
@@ -8774,7 +9651,7 @@ var animationFrame = {
 
 module.exports = animationFrame;
 
-},{}],34:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  * 
@@ -8806,7 +9683,7 @@ module.exports = {
     cancelAnimationFrame: require('./animationFrame').cancelAnimationFrame
 };
 
-},{"./animationFrame":33}],35:[function(require,module,exports){
+},{"./animationFrame":35}],37:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -9118,7 +9995,7 @@ RequestAnimationFrameLoop.prototype.noLongerUpdate = function noLongerUpdate(upd
 
 module.exports = RequestAnimationFrameLoop;
 
-},{"../polyfills":34}],36:[function(require,module,exports){
+},{"../polyfills":36}],38:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -9407,7 +10284,7 @@ Compositor.prototype.clearCommands = function clearCommands() {
 
 module.exports = Compositor;
 
-},{"../core/Commands":6,"./Context":37,"./inject-css":39}],37:[function(require,module,exports){
+},{"../core/Commands":7,"./Context":39,"./inject-css":41}],39:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -9954,7 +10831,7 @@ function changeViewTransform (context, path, commands, iterator) {
 
 module.exports = Context;
 
-},{"../components/Camera":1,"../core/Commands":6,"../dom-renderers/DOMRenderer":19,"../webgl-renderers/WebGLRenderer":52}],38:[function(require,module,exports){
+},{"../components/Camera":1,"../core/Commands":7,"../dom-renderers/DOMRenderer":20,"../webgl-renderers/WebGLRenderer":54}],40:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -10113,7 +10990,7 @@ UIManager.prototype.update = function update (time) {
 
 module.exports = UIManager;
 
-},{"../core/Commands":6}],39:[function(require,module,exports){
+},{"../core/Commands":7}],41:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -10204,7 +11081,7 @@ function injectCSS() {
 
 module.exports = injectCSS;
 
-},{}],40:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -10460,7 +11337,7 @@ var Curves = {
 
 module.exports = Curves;
 
-},{}],41:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -10918,7 +11795,7 @@ Transitionable.prototype.set = function(state, transition, callback) {
 
 module.exports = Transitionable;
 
-},{"../core/FamousEngine":9,"./Curves":40}],42:[function(require,module,exports){
+},{"../core/FamousEngine":10,"./Curves":42}],44:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -11016,7 +11893,7 @@ CallbackStore.prototype.trigger = function trigger (key, payload) {
 
 module.exports = CallbackStore;
 
-},{}],43:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -11080,7 +11957,7 @@ var clone = function clone(b) {
 
 module.exports = clone;
 
-},{}],44:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 'use strict';
 
 /**
@@ -11137,7 +12014,7 @@ module.exports = function keyValuesToArrays(obj) {
     };
 };
 
-},{}],45:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -11197,7 +12074,7 @@ function vendorPrefix(property) {
 
 module.exports = vendorPrefix;
 
-},{}],46:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -11269,7 +12146,7 @@ Buffer.prototype.subData = function subData() {
 
 module.exports = Buffer;
 
-},{}],47:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -11416,7 +12293,7 @@ BufferRegistry.prototype.allocate = function allocate(geometryId, name, value, s
 
 module.exports = BufferRegistry;
 
-},{"./Buffer":46}],48:[function(require,module,exports){
+},{"./Buffer":48}],50:[function(require,module,exports){
 'use strict';
 
 /**
@@ -11511,7 +12388,7 @@ function _processErrors(errors, source) {
     }
 }
 
-},{}],49:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -11999,7 +12876,7 @@ Program.prototype.compileShader = function compileShader(shader, source) {
 
 module.exports = Program;
 
-},{"../utilities/clone":43,"../utilities/keyValueToArrays":44,"../webgl-shaders":56,"./Debug":48}],50:[function(require,module,exports){
+},{"../utilities/clone":45,"../utilities/keyValueToArrays":46,"../webgl-shaders":58,"./Debug":50}],52:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -12140,7 +13017,7 @@ Texture.prototype.readBack = function readBack(x, y, width, height) {
 
 module.exports = Texture;
 
-},{}],51:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -12352,7 +13229,7 @@ TextureManager.prototype.bindTexture = function bindTexture(id) {
 
 module.exports = TextureManager;
 
-},{"./Texture":50,"./createCheckerboard":54}],52:[function(require,module,exports){
+},{"./Texture":52,"./createCheckerboard":56}],54:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -13208,7 +14085,7 @@ WebGLRenderer.prototype.resetOptions = function resetOptions(options) {
 
 module.exports = WebGLRenderer;
 
-},{"../utilities/keyValueToArrays":44,"./BufferRegistry":47,"./Program":49,"./TextureManager":51,"./compileMaterial":53,"./radixSort":55}],53:[function(require,module,exports){
+},{"../utilities/keyValueToArrays":46,"./BufferRegistry":49,"./Program":51,"./TextureManager":53,"./compileMaterial":55,"./radixSort":57}],55:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -13356,7 +14233,7 @@ function _arrayToVec(array) {
 
 module.exports = compileMaterial;
 
-},{}],54:[function(require,module,exports){
+},{}],56:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -13400,7 +14277,7 @@ function createCheckerBoard() {
 
 module.exports = createCheckerBoard;
 
-},{}],55:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -13531,7 +14408,7 @@ function radixSort(list, registry) {
 
 module.exports = radixSort;
 
-},{}],56:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -13561,13 +14438,13 @@ module.exports = radixSort;
 
 
 var shaders = {
-    vertex: "#define GLSLIFY 1\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates transpose inverse matrix from transform\n * \n * @method random\n * @private\n *\n *\n */\n\n\nmat3 getNormalMatrix_1_0(in mat4 t) {\n   mat3 matNorm;\n   mat4 a = t;\n\n   float a00 = a[0][0], a01 = a[0][1], a02 = a[0][2], a03 = a[0][3],\n   a10 = a[1][0], a11 = a[1][1], a12 = a[1][2], a13 = a[1][3],\n   a20 = a[2][0], a21 = a[2][1], a22 = a[2][2], a23 = a[2][3],\n   a30 = a[3][0], a31 = a[3][1], a32 = a[3][2], a33 = a[3][3],\n   b00 = a00 * a11 - a01 * a10,\n   b01 = a00 * a12 - a02 * a10,\n   b02 = a00 * a13 - a03 * a10,\n   b03 = a01 * a12 - a02 * a11,\n   b04 = a01 * a13 - a03 * a11,\n   b05 = a02 * a13 - a03 * a12,\n   b06 = a20 * a31 - a21 * a30,\n   b07 = a20 * a32 - a22 * a30,\n   b08 = a20 * a33 - a23 * a30,\n   b09 = a21 * a32 - a22 * a31,\n   b10 = a21 * a33 - a23 * a31,\n   b11 = a22 * a33 - a23 * a32,\n\n   det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;\n   det = 1.0 / det;\n\n   matNorm[0][0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;\n   matNorm[0][1] = (a12 * b08 - a10 * b11 - a13 * b07) * det;\n   matNorm[0][2] = (a10 * b10 - a11 * b08 + a13 * b06) * det;\n\n   matNorm[1][0] = (a02 * b10 - a01 * b11 - a03 * b09) * det;\n   matNorm[1][1] = (a00 * b11 - a02 * b08 + a03 * b07) * det;\n   matNorm[1][2] = (a01 * b08 - a00 * b10 - a03 * b06) * det;\n\n   matNorm[2][0] = (a31 * b05 - a32 * b04 + a33 * b03) * det;\n   matNorm[2][1] = (a32 * b02 - a30 * b05 - a33 * b01) * det;\n   matNorm[2][2] = (a30 * b04 - a31 * b02 + a33 * b00) * det;\n\n   return matNorm;\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates a matrix that creates the identity when multiplied by m\n * \n * @method inverse\n * @private\n *\n *\n */\n\n\nfloat inverse_3_1(float m) {\n    return 1.0 / m;\n}\n\nmat2 inverse_3_1(mat2 m) {\n    return mat2(m[1][1],-m[0][1],\n               -m[1][0], m[0][0]) / (m[0][0]*m[1][1] - m[0][1]*m[1][0]);\n}\n\nmat3 inverse_3_1(mat3 m) {\n    float a00 = m[0][0], a01 = m[0][1], a02 = m[0][2];\n    float a10 = m[1][0], a11 = m[1][1], a12 = m[1][2];\n    float a20 = m[2][0], a21 = m[2][1], a22 = m[2][2];\n\n    float b01 =  a22 * a11 - a12 * a21;\n    float b11 = -a22 * a10 + a12 * a20;\n    float b21 =  a21 * a10 - a11 * a20;\n\n    float det = a00 * b01 + a01 * b11 + a02 * b21;\n\n    return mat3(b01, (-a22 * a01 + a02 * a21), (a12 * a01 - a02 * a11),\n                b11, (a22 * a00 - a02 * a20), (-a12 * a00 + a02 * a10),\n                b21, (-a21 * a00 + a01 * a20), (a11 * a00 - a01 * a10)) / det;\n}\n\nmat4 inverse_3_1(mat4 m) {\n    float\n        a00 = m[0][0], a01 = m[0][1], a02 = m[0][2], a03 = m[0][3],\n        a10 = m[1][0], a11 = m[1][1], a12 = m[1][2], a13 = m[1][3],\n        a20 = m[2][0], a21 = m[2][1], a22 = m[2][2], a23 = m[2][3],\n        a30 = m[3][0], a31 = m[3][1], a32 = m[3][2], a33 = m[3][3],\n\n        b00 = a00 * a11 - a01 * a10,\n        b01 = a00 * a12 - a02 * a10,\n        b02 = a00 * a13 - a03 * a10,\n        b03 = a01 * a12 - a02 * a11,\n        b04 = a01 * a13 - a03 * a11,\n        b05 = a02 * a13 - a03 * a12,\n        b06 = a20 * a31 - a21 * a30,\n        b07 = a20 * a32 - a22 * a30,\n        b08 = a20 * a33 - a23 * a30,\n        b09 = a21 * a32 - a22 * a31,\n        b10 = a21 * a33 - a23 * a31,\n        b11 = a22 * a33 - a23 * a32,\n\n        det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;\n\n    return mat4(\n        a11 * b11 - a12 * b10 + a13 * b09,\n        a02 * b10 - a01 * b11 - a03 * b09,\n        a31 * b05 - a32 * b04 + a33 * b03,\n        a22 * b04 - a21 * b05 - a23 * b03,\n        a12 * b08 - a10 * b11 - a13 * b07,\n        a00 * b11 - a02 * b08 + a03 * b07,\n        a32 * b02 - a30 * b05 - a33 * b01,\n        a20 * b05 - a22 * b02 + a23 * b01,\n        a10 * b10 - a11 * b08 + a13 * b06,\n        a01 * b08 - a00 * b10 - a03 * b06,\n        a30 * b04 - a31 * b02 + a33 * b00,\n        a21 * b02 - a20 * b04 - a23 * b00,\n        a11 * b07 - a10 * b09 - a12 * b06,\n        a00 * b09 - a01 * b07 + a02 * b06,\n        a31 * b01 - a30 * b03 - a32 * b00,\n        a20 * b03 - a21 * b01 + a22 * b00) / det;\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Reflects a matrix over its main diagonal.\n * \n * @method transpose\n * @private\n *\n *\n */\n\n\nfloat transpose_2_2(float m) {\n    return m;\n}\n\nmat2 transpose_2_2(mat2 m) {\n    return mat2(m[0][0], m[1][0],\n                m[0][1], m[1][1]);\n}\n\nmat3 transpose_2_2(mat3 m) {\n    return mat3(m[0][0], m[1][0], m[2][0],\n                m[0][1], m[1][1], m[2][1],\n                m[0][2], m[1][2], m[2][2]);\n}\n\nmat4 transpose_2_2(mat4 m) {\n    return mat4(m[0][0], m[1][0], m[2][0], m[3][0],\n                m[0][1], m[1][1], m[2][1], m[3][1],\n                m[0][2], m[1][2], m[2][2], m[3][2],\n                m[0][3], m[1][3], m[2][3], m[3][3]);\n}\n\n\n\n\n/**\n * Converts vertex from modelspace to screenspace using transform\n * information from context.\n *\n * @method applyTransform\n * @private\n *\n *\n */\n\nvec4 applyTransform(vec4 pos) {\n    //TODO: move this multiplication to application code. \n\n    /**\n     * Currently multiplied in the vertex shader to avoid consuming the complexity of holding an additional\n     * transform as state on the mesh object in WebGLRenderer. Multiplies the object's transformation from object space\n     * to world space with its transformation from world space to eye space.\n     */\n    mat4 MVMatrix = u_view * u_transform;\n\n    //TODO: move the origin, sizeScale and y axis inversion to application code in order to amortize redundant per-vertex calculations.\n\n    /**\n     * The transform uniform should be changed to the result of the transformation chain:\n     *\n     * view * modelTransform * invertYAxis * sizeScale * origin\n     *\n     * which could be simplified to:\n     *\n     * view * modelTransform * convertToDOMSpace\n     *\n     * where convertToDOMSpace represents the transform matrix:\n     *\n     *                           size.x 0       0       size.x \n     *                           0      -size.y 0       size.y\n     *                           0      0       1       0\n     *                           0      0       0       1\n     *\n     */\n\n    /**\n     * Assuming a unit volume, moves the object space origin [0, 0, 0] to the \"top left\" [1, -1, 0], the DOM space origin.\n     * Later in the transformation chain, the projection transform negates the rigidbody translation.\n     * Equivalent to (but much faster than) multiplying a translation matrix \"origin\"\n     *\n     *                           1 0 0 1 \n     *                           0 1 0 -1\n     *                           0 0 1 0\n     *                           0 0 0 1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.x += 1.0;\n    pos.y -= 1.0;\n\n    /**\n     * Assuming a unit volume, scales an object to the amount of pixels in the size uniform vector's specified dimensions.\n     * Later in the transformation chain, the projection transform transforms the point into clip space by scaling\n     * by the inverse of the canvas' resolution.\n     * Equivalent to (but much faster than) multiplying a scale matrix \"sizeScale\"\n     *\n     *                           size.x 0      0      0 \n     *                           0      size.y 0      0\n     *                           0      0      size.z 0\n     *                           0      0      0      1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.xyz *= u_size * 0.5;\n\n    /**\n     * Inverts the object space's y axis in order to match DOM space conventions. \n     * Later in the transformation chain, the projection transform reinverts the y axis to convert to clip space.\n     * Equivalent to (but much faster than) multiplying a scale matrix \"invertYAxis\"\n     *\n     *                           1 0 0 0 \n     *                           0 -1 0 0\n     *                           0 0 1 0\n     *                           0 0 0 1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.y *= -1.0;\n\n    /**\n     * Exporting the vertex's position as a varying, in DOM space, to be used for lighting calculations. This has to be in DOM space\n     * since light position and direction is derived from the scene graph, calculated in DOM space.\n     */\n\n    v_position = (MVMatrix * pos).xyz;\n\n    /**\n    * Exporting the eye vector (a vector from the center of the screen) as a varying, to be used for lighting calculations.\n    * In clip space deriving the eye vector is a matter of simply taking the inverse of the position, as the position is a vector\n    * from the center of the screen. However, since our points are represented in DOM space,\n    * the position is a vector from the top left corner of the screen, so some additional math is needed (specifically, subtracting\n    * the position from the center of the screen, i.e. half the resolution of the canvas).\n    */\n\n    v_eyeVector = (u_resolution * 0.5) - v_position;\n\n    /**\n     * Transforming the position (currently represented in dom space) into view space (with our dom space view transform)\n     * and then projecting the point into raster both by applying a perspective transformation and converting to clip space\n     * (the perspective matrix is a combination of both transformations, therefore it's probably more apt to refer to it as a\n     * projection transform).\n     */\n\n    pos = u_perspective * MVMatrix * pos;\n\n    return pos;\n}\n\n/**\n * Placeholder for positionOffset chunks to be templated in.\n * Used for mesh deformation.\n *\n * @method calculateOffset\n * @private\n *\n *\n */\n#vert_definitions\nvec3 calculateOffset(vec3 ID) {\n    #vert_applications\n    return vec3(0.0);\n}\n\n/**\n * Writes the position of the vertex onto the screen.\n * Passes texture coordinate and normal attributes as varyings\n * and passes the position attribute through position pipeline.\n *\n * @method main\n * @private\n *\n *\n */\nvoid main() {\n    v_textureCoordinate = a_texCoord;\n    vec3 invertedNormals = a_normals + (u_normals.x < 0.0 ? calculateOffset(u_normals) * 2.0 - 1.0 : vec3(0.0));\n    invertedNormals.y *= -1.0;\n    v_normal = transpose_2_2(mat3(inverse_3_1(u_transform))) * invertedNormals;\n    vec3 offsetPos = a_pos + calculateOffset(u_positionOffset);\n    gl_Position = applyTransform(vec4(offsetPos, 1.0));\n}\n",
-    fragment: "#define GLSLIFY 1\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Placeholder for fragmentShader  chunks to be templated in.\n * Used for normal mapping, gloss mapping and colors.\n * \n * @method applyMaterial\n * @private\n *\n *\n */\n\n#float_definitions\nfloat applyMaterial_1_0(float ID) {\n    #float_applications\n    return 1.;\n}\n\n#vec3_definitions\nvec3 applyMaterial_1_0(vec3 ID) {\n    #vec3_applications\n    return vec3(0);\n}\n\n#vec4_definitions\nvec4 applyMaterial_1_0(vec4 ID) {\n    #vec4_applications\n\n    return vec4(0);\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates the intensity of light on a surface.\n *\n * @method applyLight\n * @private\n *\n */\nvec4 applyLight_2_1(in vec4 baseColor, in vec3 normal, in vec4 glossiness, int numLights, vec3 ambientColor, vec3 eyeVector, mat4 lightPosition, mat4 lightColor, vec3 v_position) {\n    vec3 diffuse = vec3(0.0);\n    bool hasGlossiness = glossiness.a > 0.0;\n    bool hasSpecularColor = length(glossiness.rgb) > 0.0;\n\n    for(int i = 0; i < 4; i++) {\n        if (i >= numLights) break;\n        vec3 lightDirection = normalize(lightPosition[i].xyz - v_position);\n        float lambertian = max(dot(lightDirection, normal), 0.0);\n\n        if (lambertian > 0.0) {\n            diffuse += lightColor[i].rgb * baseColor.rgb * lambertian;\n            if (hasGlossiness) {\n                vec3 halfVector = normalize(lightDirection + eyeVector);\n                float specularWeight = pow(max(dot(halfVector, normal), 0.0), glossiness.a);\n                vec3 specularColor = hasSpecularColor ? glossiness.rgb : lightColor[i].rgb;\n                diffuse += specularColor * specularWeight * lambertian;\n            }\n        }\n\n    }\n\n    return vec4(ambientColor + diffuse, baseColor.a);\n}\n\n\n\n\n\n/**\n * Writes the color of the pixel onto the screen\n *\n * @method main\n * @private\n *\n *\n */\nvoid main() {\n    vec4 material = u_baseColor.r >= 0.0 ? u_baseColor : applyMaterial_1_0(u_baseColor);\n\n    /**\n     * Apply lights only if flat shading is false\n     * and at least one light is added to the scene\n     */\n    bool lightsEnabled = (u_flatShading == 0.0) && (u_numLights > 0.0 || length(u_ambientLight) > 0.0);\n\n    vec3 normal = normalize(v_normal);\n    vec4 glossiness = u_glossiness.x < 0.0 ? applyMaterial_1_0(u_glossiness) : u_glossiness;\n\n    vec4 color = lightsEnabled ?\n    applyLight_2_1(material, normalize(v_normal), glossiness,\n               int(u_numLights),\n               u_ambientLight * u_baseColor.rgb,\n               normalize(v_eyeVector),\n               u_lightPosition,\n               u_lightColor,   \n               v_position)\n    : material;\n\n    gl_FragColor = color;\n    gl_FragColor.a *= u_opacity;   \n}\n"
+    vertex: "#define GLSLIFY 1\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates transpose inverse matrix from transform\n * \n * @method random\n * @private\n *\n *\n */\n\n\nmat3 getNormalMatrix_1_0(in mat4 t) {\n   mat3 matNorm;\n   mat4 a = t;\n\n   float a00 = a[0][0], a01 = a[0][1], a02 = a[0][2], a03 = a[0][3],\n   a10 = a[1][0], a11 = a[1][1], a12 = a[1][2], a13 = a[1][3],\n   a20 = a[2][0], a21 = a[2][1], a22 = a[2][2], a23 = a[2][3],\n   a30 = a[3][0], a31 = a[3][1], a32 = a[3][2], a33 = a[3][3],\n   b00 = a00 * a11 - a01 * a10,\n   b01 = a00 * a12 - a02 * a10,\n   b02 = a00 * a13 - a03 * a10,\n   b03 = a01 * a12 - a02 * a11,\n   b04 = a01 * a13 - a03 * a11,\n   b05 = a02 * a13 - a03 * a12,\n   b06 = a20 * a31 - a21 * a30,\n   b07 = a20 * a32 - a22 * a30,\n   b08 = a20 * a33 - a23 * a30,\n   b09 = a21 * a32 - a22 * a31,\n   b10 = a21 * a33 - a23 * a31,\n   b11 = a22 * a33 - a23 * a32,\n\n   det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;\n   det = 1.0 / det;\n\n   matNorm[0][0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;\n   matNorm[0][1] = (a12 * b08 - a10 * b11 - a13 * b07) * det;\n   matNorm[0][2] = (a10 * b10 - a11 * b08 + a13 * b06) * det;\n\n   matNorm[1][0] = (a02 * b10 - a01 * b11 - a03 * b09) * det;\n   matNorm[1][1] = (a00 * b11 - a02 * b08 + a03 * b07) * det;\n   matNorm[1][2] = (a01 * b08 - a00 * b10 - a03 * b06) * det;\n\n   matNorm[2][0] = (a31 * b05 - a32 * b04 + a33 * b03) * det;\n   matNorm[2][1] = (a32 * b02 - a30 * b05 - a33 * b01) * det;\n   matNorm[2][2] = (a30 * b04 - a31 * b02 + a33 * b00) * det;\n\n   return matNorm;\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates a matrix that creates the identity when multiplied by m\n * \n * @method inverse\n * @private\n *\n *\n */\n\n\nfloat inverse_2_1(float m) {\n    return 1.0 / m;\n}\n\nmat2 inverse_2_1(mat2 m) {\n    return mat2(m[1][1],-m[0][1],\n               -m[1][0], m[0][0]) / (m[0][0]*m[1][1] - m[0][1]*m[1][0]);\n}\n\nmat3 inverse_2_1(mat3 m) {\n    float a00 = m[0][0], a01 = m[0][1], a02 = m[0][2];\n    float a10 = m[1][0], a11 = m[1][1], a12 = m[1][2];\n    float a20 = m[2][0], a21 = m[2][1], a22 = m[2][2];\n\n    float b01 =  a22 * a11 - a12 * a21;\n    float b11 = -a22 * a10 + a12 * a20;\n    float b21 =  a21 * a10 - a11 * a20;\n\n    float det = a00 * b01 + a01 * b11 + a02 * b21;\n\n    return mat3(b01, (-a22 * a01 + a02 * a21), (a12 * a01 - a02 * a11),\n                b11, (a22 * a00 - a02 * a20), (-a12 * a00 + a02 * a10),\n                b21, (-a21 * a00 + a01 * a20), (a11 * a00 - a01 * a10)) / det;\n}\n\nmat4 inverse_2_1(mat4 m) {\n    float\n        a00 = m[0][0], a01 = m[0][1], a02 = m[0][2], a03 = m[0][3],\n        a10 = m[1][0], a11 = m[1][1], a12 = m[1][2], a13 = m[1][3],\n        a20 = m[2][0], a21 = m[2][1], a22 = m[2][2], a23 = m[2][3],\n        a30 = m[3][0], a31 = m[3][1], a32 = m[3][2], a33 = m[3][3],\n\n        b00 = a00 * a11 - a01 * a10,\n        b01 = a00 * a12 - a02 * a10,\n        b02 = a00 * a13 - a03 * a10,\n        b03 = a01 * a12 - a02 * a11,\n        b04 = a01 * a13 - a03 * a11,\n        b05 = a02 * a13 - a03 * a12,\n        b06 = a20 * a31 - a21 * a30,\n        b07 = a20 * a32 - a22 * a30,\n        b08 = a20 * a33 - a23 * a30,\n        b09 = a21 * a32 - a22 * a31,\n        b10 = a21 * a33 - a23 * a31,\n        b11 = a22 * a33 - a23 * a32,\n\n        det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;\n\n    return mat4(\n        a11 * b11 - a12 * b10 + a13 * b09,\n        a02 * b10 - a01 * b11 - a03 * b09,\n        a31 * b05 - a32 * b04 + a33 * b03,\n        a22 * b04 - a21 * b05 - a23 * b03,\n        a12 * b08 - a10 * b11 - a13 * b07,\n        a00 * b11 - a02 * b08 + a03 * b07,\n        a32 * b02 - a30 * b05 - a33 * b01,\n        a20 * b05 - a22 * b02 + a23 * b01,\n        a10 * b10 - a11 * b08 + a13 * b06,\n        a01 * b08 - a00 * b10 - a03 * b06,\n        a30 * b04 - a31 * b02 + a33 * b00,\n        a21 * b02 - a20 * b04 - a23 * b00,\n        a11 * b07 - a10 * b09 - a12 * b06,\n        a00 * b09 - a01 * b07 + a02 * b06,\n        a31 * b01 - a30 * b03 - a32 * b00,\n        a20 * b03 - a21 * b01 + a22 * b00) / det;\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Reflects a matrix over its main diagonal.\n * \n * @method transpose\n * @private\n *\n *\n */\n\n\nfloat transpose_3_2(float m) {\n    return m;\n}\n\nmat2 transpose_3_2(mat2 m) {\n    return mat2(m[0][0], m[1][0],\n                m[0][1], m[1][1]);\n}\n\nmat3 transpose_3_2(mat3 m) {\n    return mat3(m[0][0], m[1][0], m[2][0],\n                m[0][1], m[1][1], m[2][1],\n                m[0][2], m[1][2], m[2][2]);\n}\n\nmat4 transpose_3_2(mat4 m) {\n    return mat4(m[0][0], m[1][0], m[2][0], m[3][0],\n                m[0][1], m[1][1], m[2][1], m[3][1],\n                m[0][2], m[1][2], m[2][2], m[3][2],\n                m[0][3], m[1][3], m[2][3], m[3][3]);\n}\n\n\n\n\n/**\n * Converts vertex from modelspace to screenspace using transform\n * information from context.\n *\n * @method applyTransform\n * @private\n *\n *\n */\n\nvec4 applyTransform(vec4 pos) {\n    //TODO: move this multiplication to application code. \n\n    /**\n     * Currently multiplied in the vertex shader to avoid consuming the complexity of holding an additional\n     * transform as state on the mesh object in WebGLRenderer. Multiplies the object's transformation from object space\n     * to world space with its transformation from world space to eye space.\n     */\n    mat4 MVMatrix = u_view * u_transform;\n\n    //TODO: move the origin, sizeScale and y axis inversion to application code in order to amortize redundant per-vertex calculations.\n\n    /**\n     * The transform uniform should be changed to the result of the transformation chain:\n     *\n     * view * modelTransform * invertYAxis * sizeScale * origin\n     *\n     * which could be simplified to:\n     *\n     * view * modelTransform * convertToDOMSpace\n     *\n     * where convertToDOMSpace represents the transform matrix:\n     *\n     *                           size.x 0       0       size.x \n     *                           0      -size.y 0       size.y\n     *                           0      0       1       0\n     *                           0      0       0       1\n     *\n     */\n\n    /**\n     * Assuming a unit volume, moves the object space origin [0, 0, 0] to the \"top left\" [1, -1, 0], the DOM space origin.\n     * Later in the transformation chain, the projection transform negates the rigidbody translation.\n     * Equivalent to (but much faster than) multiplying a translation matrix \"origin\"\n     *\n     *                           1 0 0 1 \n     *                           0 1 0 -1\n     *                           0 0 1 0\n     *                           0 0 0 1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.x += 1.0;\n    pos.y -= 1.0;\n\n    /**\n     * Assuming a unit volume, scales an object to the amount of pixels in the size uniform vector's specified dimensions.\n     * Later in the transformation chain, the projection transform transforms the point into clip space by scaling\n     * by the inverse of the canvas' resolution.\n     * Equivalent to (but much faster than) multiplying a scale matrix \"sizeScale\"\n     *\n     *                           size.x 0      0      0 \n     *                           0      size.y 0      0\n     *                           0      0      size.z 0\n     *                           0      0      0      1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.xyz *= u_size * 0.5;\n\n    /**\n     * Inverts the object space's y axis in order to match DOM space conventions. \n     * Later in the transformation chain, the projection transform reinverts the y axis to convert to clip space.\n     * Equivalent to (but much faster than) multiplying a scale matrix \"invertYAxis\"\n     *\n     *                           1 0 0 0 \n     *                           0 -1 0 0\n     *                           0 0 1 0\n     *                           0 0 0 1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.y *= -1.0;\n\n    /**\n     * Exporting the vertex's position as a varying, in DOM space, to be used for lighting calculations. This has to be in DOM space\n     * since light position and direction is derived from the scene graph, calculated in DOM space.\n     */\n\n    v_position = (MVMatrix * pos).xyz;\n\n    /**\n    * Exporting the eye vector (a vector from the center of the screen) as a varying, to be used for lighting calculations.\n    * In clip space deriving the eye vector is a matter of simply taking the inverse of the position, as the position is a vector\n    * from the center of the screen. However, since our points are represented in DOM space,\n    * the position is a vector from the top left corner of the screen, so some additional math is needed (specifically, subtracting\n    * the position from the center of the screen, i.e. half the resolution of the canvas).\n    */\n\n    v_eyeVector = (u_resolution * 0.5) - v_position;\n\n    /**\n     * Transforming the position (currently represented in dom space) into view space (with our dom space view transform)\n     * and then projecting the point into raster both by applying a perspective transformation and converting to clip space\n     * (the perspective matrix is a combination of both transformations, therefore it's probably more apt to refer to it as a\n     * projection transform).\n     */\n\n    pos = u_perspective * MVMatrix * pos;\n\n    return pos;\n}\n\n/**\n * Placeholder for positionOffset chunks to be templated in.\n * Used for mesh deformation.\n *\n * @method calculateOffset\n * @private\n *\n *\n */\n#vert_definitions\nvec3 calculateOffset(vec3 ID) {\n    #vert_applications\n    return vec3(0.0);\n}\n\n/**\n * Writes the position of the vertex onto the screen.\n * Passes texture coordinate and normal attributes as varyings\n * and passes the position attribute through position pipeline.\n *\n * @method main\n * @private\n *\n *\n */\nvoid main() {\n    v_textureCoordinate = a_texCoord;\n    vec3 invertedNormals = a_normals + (u_normals.x < 0.0 ? calculateOffset(u_normals) * 2.0 - 1.0 : vec3(0.0));\n    invertedNormals.y *= -1.0;\n    v_normal = transpose_3_2(mat3(inverse_2_1(u_transform))) * invertedNormals;\n    vec3 offsetPos = a_pos + calculateOffset(u_positionOffset);\n    gl_Position = applyTransform(vec4(offsetPos, 1.0));\n}\n",
+    fragment: "#define GLSLIFY 1\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Placeholder for fragmentShader  chunks to be templated in.\n * Used for normal mapping, gloss mapping and colors.\n * \n * @method applyMaterial\n * @private\n *\n *\n */\n\n#float_definitions\nfloat applyMaterial_2_0(float ID) {\n    #float_applications\n    return 1.;\n}\n\n#vec3_definitions\nvec3 applyMaterial_2_0(vec3 ID) {\n    #vec3_applications\n    return vec3(0);\n}\n\n#vec4_definitions\nvec4 applyMaterial_2_0(vec4 ID) {\n    #vec4_applications\n\n    return vec4(0);\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates the intensity of light on a surface.\n *\n * @method applyLight\n * @private\n *\n */\nvec4 applyLight_1_1(in vec4 baseColor, in vec3 normal, in vec4 glossiness, int numLights, vec3 ambientColor, vec3 eyeVector, mat4 lightPosition, mat4 lightColor, vec3 v_position) {\n    vec3 diffuse = vec3(0.0);\n    bool hasGlossiness = glossiness.a > 0.0;\n    bool hasSpecularColor = length(glossiness.rgb) > 0.0;\n\n    for(int i = 0; i < 4; i++) {\n        if (i >= numLights) break;\n        vec3 lightDirection = normalize(lightPosition[i].xyz - v_position);\n        float lambertian = max(dot(lightDirection, normal), 0.0);\n\n        if (lambertian > 0.0) {\n            diffuse += lightColor[i].rgb * baseColor.rgb * lambertian;\n            if (hasGlossiness) {\n                vec3 halfVector = normalize(lightDirection + eyeVector);\n                float specularWeight = pow(max(dot(halfVector, normal), 0.0), glossiness.a);\n                vec3 specularColor = hasSpecularColor ? glossiness.rgb : lightColor[i].rgb;\n                diffuse += specularColor * specularWeight * lambertian;\n            }\n        }\n\n    }\n\n    return vec4(ambientColor + diffuse, baseColor.a);\n}\n\n\n\n\n\n/**\n * Writes the color of the pixel onto the screen\n *\n * @method main\n * @private\n *\n *\n */\nvoid main() {\n    vec4 material = u_baseColor.r >= 0.0 ? u_baseColor : applyMaterial_2_0(u_baseColor);\n\n    /**\n     * Apply lights only if flat shading is false\n     * and at least one light is added to the scene\n     */\n    bool lightsEnabled = (u_flatShading == 0.0) && (u_numLights > 0.0 || length(u_ambientLight) > 0.0);\n\n    vec3 normal = normalize(v_normal);\n    vec4 glossiness = u_glossiness.x < 0.0 ? applyMaterial_2_0(u_glossiness) : u_glossiness;\n\n    vec4 color = lightsEnabled ?\n    applyLight_1_1(material, normalize(v_normal), glossiness,\n               int(u_numLights),\n               u_ambientLight * u_baseColor.rgb,\n               normalize(v_eyeVector),\n               u_lightPosition,\n               u_lightColor,   \n               v_position)\n    : material;\n\n    gl_FragColor = color;\n    gl_FragColor.a *= u_opacity;   \n}\n"
 };
 
 module.exports = shaders;
 
-},{}],57:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 'use strict';
 
 var FamousEngine = require('famous/core/FamousEngine');
@@ -13653,7 +14530,7 @@ function App(scene) {
 
 module.exports = App;
 
-},{"./appNode.js":58,"./layoutManager.js":59,"famous/components/Position":2,"famous/components/Size":3,"famous/core/FamousEngine":9,"famous/dom-renderables/DOMElement":18}],58:[function(require,module,exports){
+},{"./appNode.js":60,"./layoutManager.js":61,"famous/components/Position":3,"famous/components/Size":4,"famous/core/FamousEngine":10,"famous/dom-renderables/DOMElement":19}],60:[function(require,module,exports){
 'use strict';
 
 var Node = require('famous/core/Node');
@@ -13661,9 +14538,11 @@ var DOMElement = require('famous/dom-renderables/DOMElement');
 
 var Position = require('famous/components/Position');
 var Size = require('famous/components/Size');
+var GestureHandler = require('famous/components/GestureHandler');
 
 var LayoutManager = require('./layoutManager.js');
 var LoginAndStatusPanel = require('./loginAndStatusPanel.js');
+var PostitNode = require('./postitNode.js');
 
 function AppNode() {
 
@@ -13678,13 +14557,58 @@ function AppNode() {
 
   this.postitEntries = [];
 
+  this.postitSeq = 0;
+
   this.loginAndStatusPanel = this.addChild(new LoginAndStatusPanel());
+
+  this.postitBasePanel = this.addChild();
+
+  this.postitContainerPanel = this.postitBasePanel.addChild();
+  this.postitContainerPanelPos = new Position(this.postitContainerPanel);
+  this.postitContainerPanelPos.set(0, 0);
 
   this.menuPanel = this.addChild();
 
   this.backgroundDiv = new DOMElement(this, {
     properties: {
-      'background-color': '#666'
+      'background-color': 'rgb(80, 76, 76)',
+      'overflow': 'hidden'
+    }
+  });
+
+  this.postitPanelDiv = new DOMElement(this.postitBasePanel, {
+    id: 'postitBasePanel',
+    properties: {
+      'background-color': 'rgb(95, 89, 89)',
+      'overflow': 'hidden'
+      //     'z-index' : -1
+    }
+  });
+
+  this.postitContainerDiv = new DOMElement(this.postitContainerPanel, {
+    id: 'postitContainerPanel',
+    properties: {
+      'background-color': 'rgb(95, 89, 89)',
+
+      'z-index': 1
+    }
+  });
+
+  var that = this;
+
+  this.gestures = new GestureHandler(this.postitContainerPanel);
+  this.gestures.on({
+    event: 'drag',
+    points: 2,
+    threshold: 10
+  }, function (e) {
+
+    console.log(e);
+    if (e.status == 'move') {
+
+      var tempY = that.postitContainerPanelPos.getY() + e.centerDelta.y;
+      that.postitContainerPanelPos.set(0, tempY);
+      console.log('New y pos ' + tempY);
     }
   });
 }
@@ -13696,15 +14620,47 @@ AppNode.prototype.initNode = function initNode() {
 
   this.loginAndStatusPanel.initPanel();
   this.initEvents();
+
+  this.postitBasePanel.setSizeMode(1, 1, 1).setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(), 0).setPosition(0, LayoutManager.getPostitPanelHeightOffset(), 0);
+
+  this.postitContainerPanel.setSizeMode(1, 1, 1).setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(), 0).setPosition(0, 0, 0);
+
+  this.postitPanelDiv.setProperty('display', 'none');
 };
 
 AppNode.prototype.initEvents = function initEvents() {
 
   var that = this;
   //Initialize all intra DOM UI events
+  $('body').on('click', '#addPostit', function () {
+
+    that.postitSeq++;
+
+    var taskDate = new Date().toUTCString();
+
+    var postitObject = {};
+    postitObject.postitID = that.postitSeq;
+    postitObject.creator = 'demo';
+    postitObject.creationDate = taskDate.substr(0, taskDate.length - 4);
+    postitObject.modificationDate = null;
+    postitObject.postitContent = '';
+    postitObject.postitCriticality = 1;
+
+    that.addNewPostit(postitObject);
+  });
+
   $('body').on('click', '#loginPanel_Submit', function () {
 
-    that.loginAndStatusPanel.doLogin();
+    if (that.loginAndStatusPanel.doLogin()) {
+
+      $('#postitBasePanel').fadeIn(1000);
+
+      //var post = new PostitNode(100,100)
+
+      //var pt = that.postitContainerPanel.addChild(new PostitNode());
+      //pt.display();
+      //var pt = that.postitContainerPanel.addChild();
+    }
   });
 };
 
@@ -13721,6 +14677,18 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj) {
   var content = postitObj.postitContent;
 
   var criticality = postitObj.postitCriticality;
+
+  var postit = new PostitNode(this.postitContainerPanel.addChild(), postitObj, { width: 250, height: 250 });
+  this.postitEntries.unshift(postit);
+
+  var newpos = LayoutManager.getPostitPosition(1);
+  this.postitEntries[0].place(newpos[0], newpos[1], newpos[2]);
+
+  for (var i = 1; i < this.postitEntries.length; i++) {
+
+    var posArray = LayoutManager.getPostitPosition(i + 1);
+    this.postitEntries[i].shift(posArray[0], posArray[1], posArray[2]);
+  }
 
   //Animate the movement of all the existing nodes
 
@@ -13748,6 +14716,13 @@ AppNode.prototype.modifyPostit = function modifyPostit(postitObj) {
   //Make the visual modification in the DIV element on screen
 };
 
+AppNode.prototype.layoutPostit = function layoutPostit(postitObj) {
+
+  var posArray = LayoutManager.getPostitPosition(this.postitSeq);
+
+  postitObj.getNode().setPosition(posArray[0], posArray[1], posArray[2]);
+};
+
 AppNode.prototype.reArrange = function reArrange(postitObj) {};
 
 module.exports = AppNode;
@@ -13764,14 +14739,16 @@ module.exports = AppNode;
 //Rearrange them as per the current layout
 //Set the strictLayout to true
 
-},{"./layoutManager.js":59,"./loginAndStatusPanel.js":60,"famous/components/Position":2,"famous/components/Size":3,"famous/core/Node":10,"famous/dom-renderables/DOMElement":18}],59:[function(require,module,exports){
+},{"./layoutManager.js":61,"./loginAndStatusPanel.js":62,"./postitNode.js":63,"famous/components/GestureHandler":2,"famous/components/Position":3,"famous/components/Size":4,"famous/core/Node":11,"famous/dom-renderables/DOMElement":19}],61:[function(require,module,exports){
 "use strict";
 
 var __MAX_LAYOUT_COLUMN_ = 3;
 var __HEADER_SIZE_PERCENT_ = 0.1;
 
-var __LOGINPANEL_WIDTH_SIZE_PERCENT_ = 0.3;
+var __LOGINPANEL_WIDTH_SIZE_PERCENT_ = 0.25;
 var __LOGINPANEL_HEIGHT_SIZE_PERCENT_ = 0.2;
+
+var __POSTITBASEPANEL_HEIGHT_SIZE_PERCENT_ = 0.8;
 
 var appDimensionObject = {
 
@@ -13784,11 +14761,32 @@ var appDimensionObject = {
 
   //Login Panel Width & Height
   loginPanelWidth: 0,
-  loginPanelHeight: 0
+  loginPanelHeight: 0,
+
+  postitPanelWidth: 0,
+  postitPanelheight: 0
 
 };
 
-var appLayoutObject = {};
+var appLayoutObject = {
+
+  postitXOffset: 50,
+  postitYOffset: 50,
+
+  postitInterXOffset: 20,
+
+  postitInterYOffset: 50,
+
+  postitPerRow: 0,
+
+  postitInterColOffset: 100,
+
+  postitWidth: 250,
+  postitHeight: 250,
+
+  postitInterXOffsetActual: 0
+
+};
 
 var LayoutManager = {};
 
@@ -13801,6 +14799,13 @@ LayoutManager.calcAppDimensions = function calcAppDimensions() {
 
   appDimensionObject.loginPanelWidth = appDimensionObject.appWidth * __LOGINPANEL_WIDTH_SIZE_PERCENT_;
   appDimensionObject.loginPanelHeight = appDimensionObject.appHeight * __LOGINPANEL_HEIGHT_SIZE_PERCENT_;
+
+  appDimensionObject.postitPanelWidth = appDimensionObject.appWidth;
+  appDimensionObject.postitPanelHeight = appDimensionObject.appHeight * __POSTITBASEPANEL_HEIGHT_SIZE_PERCENT_;
+
+  appLayoutObject.postitPerRow = Math.floor((appDimensionObject.appWidth - appLayoutObject.postitXOffset * 2) / (appLayoutObject.postitWidth + appLayoutObject.postitInterXOffset));
+
+  appLayoutObject.postitInterXOffsetActual = (appDimensionObject.appWidth - appLayoutObject.postitXOffset * 2 - appLayoutObject.postitPerRow * appLayoutObject.postitWidth) / (appLayoutObject.postitPerRow - 1);
 };
 
 LayoutManager.getAppDimensionWidth = function getAppDimensionWidth() {
@@ -13828,9 +14833,37 @@ LayoutManager.getLoginPageHeight = function getLoginPageHeight() {
   return appDimensionObject.loginPanelHeight;
 };
 
+LayoutManager.getPostitPanelWidth = function getPostitPanelWidth() {
+
+  return appDimensionObject.postitPanelWidth;
+};
+
+LayoutManager.getPostitPanelHeight = function getPostitPanelHeight() {
+
+  return appDimensionObject.postitPanelHeight;
+};
+
+LayoutManager.getPostitPanelHeightOffset = function getPostitPanelHeightOffset() {
+
+  return appDimensionObject.appHeaderHeight - 20;
+};
+
+LayoutManager.getPostitPosition = function getPostitPosition(pSeq) {
+
+  var rowPos = Math.ceil(pSeq / appLayoutObject.postitPerRow);
+
+  var colPos = pSeq % appLayoutObject.postitPerRow ? pSeq % appLayoutObject.postitPerRow : appLayoutObject.postitPerRow;
+
+  var XPos = appLayoutObject.postitXOffset + (colPos - 1) * appLayoutObject.postitInterXOffsetActual + (colPos - 1) * appLayoutObject.postitWidth;
+
+  var YPos = appLayoutObject.postitYOffset + (rowPos - 1) * appLayoutObject.postitInterYOffset + (rowPos - 1) * appLayoutObject.postitHeight;
+
+  return [XPos, YPos, 0];
+};
+
 module.exports = LayoutManager;
 
-},{}],60:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 'use strict';
 
 var Node = require('famous/core/Node');
@@ -13843,24 +14876,26 @@ var LayoutManager = require('./layoutManager.js');
 //Inner HTML Snippets
 var loginHTML = '<div id="loginandstatusPanel">\t        <div id="loginPanel">\t          <div class="ui form segment">\t            <div class="field required">\t              <label>Username</label>\t              <input id="loginPanel_Username" placeholder="Username" type="text">\t            </div> \t            <div class="field required">\t              <label>Password</label>\t              <div class="ui icon input"> \t                <i class="lock icon"></i>                  <input id="loginPanel_Password" placeholder="Password" type="password"/> \t              </div> \t            </div> \t            <div id="loginPanel_Submit" class="ui submit button">Submit</div>\t            <div id="loginPanel_Reset" class="ui reset button">Reset</div>\t          </div>\t        </div>\t      </div>';
 
+var menuHTML = '<div style="width:100%;height:100%;"> \t\t\t\t\t\t\t\t\t<div style="float:left;width:15%;height:100%;"> \t\t\t\t\t\t\t\t\t\t<div id="addPostit" style="width:100%;height:100%;font-size: 5vh;line-height:55px;text-align: center;  background-color: rgb(115, 240, 240);"> \t\t\t\t\t\t\t\t\t\t\t<span>+</span> \t\t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t<div> \t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t<div style="float:right;width:15%;height:100%;"> \t\t\t\t\t\t\t\t\t\t<span><img src="images/logout-icon.png" style="height:100%;width:100%;"/></span> \t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t</div>';
+
 var loginUser = 'demo';
 var loginPassword = '12345';
 
 function LoginAndStatusPanel(postitObj) {
 
-  //Call parent constructor
-  Node.call(this);
+		//Call parent constructor
+		Node.call(this);
 
-  this.loginAndStatusDiv = new DOMElement(this, {
-    content: loginHTML,
-    properties: {
-      'background-color': 'rgb(172, 167, 167)',
-      'border-radius': '10px'
-    }
-  });
+		this.loginAndStatusDiv = new DOMElement(this, {
+				content: loginHTML,
+				properties: {
+						'background-color': 'rgb(172, 167, 167)'
 
-  this.loginAndStatusPanelPosition = new Position(this);
-  this.loginAndStatusPanelSize = new Size(this);
+				}
+		});
+
+		this.loginAndStatusPanelPosition = new Position(this);
+		this.loginAndStatusPanelSize = new Size(this);
 }
 
 // Extend the prototype
@@ -13868,41 +14903,171 @@ LoginAndStatusPanel.prototype = Object.create(Node.prototype);
 
 LoginAndStatusPanel.prototype.initPanel = function initPanel() {
 
-  this.loginAndStatusPanelPosition.set(100, 100, 0);
-  this.loginAndStatusPanelSize.setMode(1, 1, 1);
+		this.loginAndStatusPanelPosition.set(100, 100, 0);
+		this.loginAndStatusPanelSize.setMode(1, 1, 1);
 
-  this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(), LayoutManager.getLoginPageHeight(), 0);
+		this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(), LayoutManager.getLoginPageHeight(), 0);
 };
 
 LoginAndStatusPanel.prototype.doLogin = function doLogin() {
 
-  var capturedUsername = $('#loginPanel_Username').val();
+		var capturedUsername = $('#loginPanel_Username').val();
 
-  var capturedPassword = $('#loginPanel_Password').val();
+		var capturedPassword = $('#loginPanel_Password').val();
 
-  if (capturedUsername == loginUser && capturedPassword == loginPassword) {
+		if (capturedUsername == loginUser && capturedPassword == loginPassword) {
 
-    _postLoginHandler.call(this);
-  }
+				_postLoginHandler.call(this);
+				return true;
+		} else {
+				return false;
+		}
 };
 
 function _postLoginHandler() {
 
-  var that = this;
+		var that = this;
 
-  $('#loginPanel').fadeOut(100);
+		$('#loginPanel').fadeOut(100);
 
-  this.loginAndStatusPanelPosition.set(100, 25, 0, { duration: 500 });
+		this.loginAndStatusPanelPosition.set(100, 10, 0, { duration: 500 });
 
-  this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(), LayoutManager.getAppDimensionHeaderHeight(), 0, { duration: 500 }, function () {
+		this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(), LayoutManager.getAppDimensionHeaderHeight() * 0.6, 0, { duration: 500 }, function () {
 
-    that.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - LayoutManager.getLoginPageWidth() - 25, 25, 0, { duration: 1000 });
-  });
+				that.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - LayoutManager.getLoginPageWidth() - 10, 10, 0, { duration: 500 });
+
+				that.loginAndStatusDiv.setContent(menuHTML);
+		});
 }
 
 module.exports = LoginAndStatusPanel;
 
-},{"./layoutManager.js":59,"famous/components/Position":2,"famous/components/Size":3,"famous/core/Node":10,"famous/dom-renderables/DOMElement":18}],61:[function(require,module,exports){
+},{"./layoutManager.js":61,"famous/components/Position":3,"famous/components/Size":4,"famous/core/Node":11,"famous/dom-renderables/DOMElement":19}],63:[function(require,module,exports){
+'use strict';
+
+var Node = require('famous/core/Node');
+
+var DOMElement = require('famous/dom-renderables/DOMElement');
+
+var Position = require('famous/components/Position');
+var Size = require('famous/components/Size');
+var Transitionable = require('famous/transitions/Transitionable');
+
+var headerContent = '<div>                     <div style="float:left;">                       <span class="postitheader">Title #1</span>                     </div>                     <div style="float:right;padding-right:5px">                       <span><img src="images/edit-icon.ico" height="20" width="20"/></span>                       <span><img src="images/flip-icon.png" height="20" width="20"/></span>                       <span><img src="images/trash-icon.png" height="20" width="20"/></span>                     </div>                   </div>                   ';
+
+var postitContent = '<div>                     <div style="overflow:hidden;">                       <textarea id="text" style="height:200px;resize:none;background-color:rgb(246, 240, 198);border:none;"></textarea>                     </div>                   </div>                   ';
+
+function PostitNode(node, obj, options) {
+
+    var that = this;
+    //Call parent constructor
+    this.node = node;
+
+    this.opacityTransitionable = new Transitionable(0);
+    this.node.setOpacity(this.opacityTransitionable.get());
+
+    this.postWidth = options.width;
+    this.postHeight = options.height;
+
+    this.frontNode = this.node.addChild();
+    //this.backNode = this.node.addChild();
+
+    this.contentNode = this.frontNode.addChild();
+    this.headerNode = this.frontNode.addChild();
+
+    this.postitData = obj;
+
+    this.postitPosition = new Position(this.node);
+    this.postitPosition.set(0, 0, 0);
+
+    //this.position = new Position(this);
+    //this.size     = new Size(this);
+
+    this.node.setSizeMode(1, 1, 1);
+    this.node.setAbsoluteSize(this.postWidth, this.postHeight, 0);
+    //this.node.setPosition(20,20);
+
+    this.headerNode.setSizeMode('relative', 'relative', 'relative').setProportionalSize(1, 0.2).setPosition(0, 0);
+
+    this.contentNode.setSizeMode('relative', 'relative', 'relative').setProportionalSize(1, 1).setPosition(0, 0);
+
+    this.el = new DOMElement(node);
+    this.el.setProperty('background-color', 'rgb(240, 232, 174)');
+    this.el.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
+    this.el.setProperty('font-size', '140%');
+    this.el.setProperty('box-shadow', '5px 5px 7px rgba(33,33,33,.7)');
+
+    this.elheader = new DOMElement(this.headerNode);
+    this.elheader.setProperty('background-color', 'rgb(240, 232, 174)');
+    this.elheader.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
+    this.elheader.setProperty('font-size', '180%');
+    this.elheader.setProperty('font-weight', 'bold');
+    this.elheader.setProperty('line-height', '1');
+    this.elheader.setProperty('padding-left', '5px');
+    this.elheader.setProperty('padding-right', '5px');
+    this.elheader.setContent(headerContent);
+
+    this.elcontent = new DOMElement(this.contentNode);
+    this.elcontent.setProperty('background-color', 'rgb(246, 240, 198)');
+    this.elcontent.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
+    this.elcontent.setProperty('font-size', '140%');
+    this.elcontent.setProperty('padding-left', '5px');
+    this.elcontent.setProperty('padding-top', options.height * 0.2 + 'px');
+    //this.elcontent.setProperty('padding-top','15px');
+    this.elcontent.setContent(postitContent);
+
+    var id = this.node.addComponent({
+        onUpdate: function onUpdate(time) {
+            // Every frame, query transitionable state and set node opacity accordingly
+            var newOpacity = that.opacityTransitionable.get();
+            that.node.setOpacity(newOpacity);
+            if (that.opacityTransitionable.isActive()) that.node.requestUpdate(id);
+        }
+    });
+
+    this.node.requestUpdate(id);
+}
+
+// Extend the prototype
+PostitNode.prototype = Object.create(Node.prototype);
+
+PostitNode.prototype.display = function display() {
+
+    this.baseDIV = new DOMElement(this, {
+        id: 'postit',
+        properties: {
+            'background-color': '#ffc',
+            'z-index': 5
+        }
+    });
+};
+
+PostitNode.prototype.getNode = function getNode() {
+
+    return this.node;
+};
+
+PostitNode.prototype.place = function place(xpos, ypos, zpos) {
+
+    this.postitPosition.set(xpos, ypos, zpos);
+
+    this.opacityTransitionable.set(1, { duration: 500 });
+};
+
+PostitNode.prototype.shift = function shift(xpos, ypos, zpos) {
+
+    this.postitPosition.set(xpos, ypos, zpos, { duration: 500 });
+};
+
+PostitNode.prototype.move = function move() {};
+
+PostitNode.prototype.resize = function resize() {};
+
+PostitNode.prototype.update = function update(postitObj) {};
+
+module.exports = PostitNode;
+
+},{"famous/components/Position":3,"famous/components/Size":4,"famous/core/Node":11,"famous/dom-renderables/DOMElement":19,"famous/transitions/Transitionable":43}],64:[function(require,module,exports){
 'use strict';
 
 // Famous dependencies
@@ -13918,4 +15083,4 @@ var scene = FamousEngine.createScene();
 
 var app = App(scene);
 
-},{"./app/app":57,"famous/core/FamousEngine":9}]},{},[61]);
+},{"./app/app":59,"famous/core/FamousEngine":10}]},{},[64]);

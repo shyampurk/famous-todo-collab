@@ -26,6 +26,19 @@ var loginHTML = '<div id="loginandstatusPanel">\
 	        </div>\
 	      </div>';
 
+var menuHTML = '<div style="width:100%;height:100%;"> \
+									<div style="float:left;width:15%;height:100%;"> \
+										<div id="addPostit" style="width:100%;height:100%;font-size: 5vh;line-height:55px;text-align: center;  background-color: rgb(115, 240, 240);"> \
+											<span>+</span> \
+										</div> \
+									</div> \
+									<div> \
+									</div> \
+									<div style="float:right;width:15%;height:100%;"> \
+										<span><img src="images/logout-icon.png" style="height:100%;width:100%;"/></span> \
+									</div> \
+								</div>';
+
 var loginUser = 'demo';
 var loginPassword = '12345'
 
@@ -40,7 +53,7 @@ function LoginAndStatusPanel(postitObj) {
        content : loginHTML,
        properties:{
          'background-color':'rgb(172, 167, 167)',
-         'border-radius' : '10px'
+
        }
     });
 
@@ -73,7 +86,10 @@ LoginAndStatusPanel.prototype.doLogin = function doLogin(){
 	if(capturedUsername == loginUser && capturedPassword == loginPassword){
 
 	  _postLoginHandler.call(this);
+		return true;
 
+	} else {
+		return false;
 	}
 }
 
@@ -83,11 +99,13 @@ function _postLoginHandler(){
 
   $('#loginPanel').fadeOut(100);
 
-  this.loginAndStatusPanelPosition.set(100,25,0,{duration : 500});
+  this.loginAndStatusPanelPosition.set(100,10,0,{duration : 500});
 
-  this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight(),0,{duration : 500},function(){
+  this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.6 ,0,{duration : 500},function(){
 
-    that.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - LayoutManager.getLoginPageWidth() - 25,25,0,{duration : 1000});
+    that.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - LayoutManager.getLoginPageWidth() - 10,10,0,{duration : 500});
+
+		that.loginAndStatusDiv.setContent(menuHTML);
 
   });
 
