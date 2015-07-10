@@ -130,7 +130,7 @@ LayoutManager.getPostitPosition = function getPostitPosition(pSeq){
 
   var YPos =  appLayoutObject.postitYOffset + ((rowPos - 1) * appLayoutObject.postitInterYOffset) + ((rowPos - 1) * appLayoutObject.postitHeight);
 
-  return [XPos , YPos , 0];
+  return [XPos , YPos , 500];
 
 }
 

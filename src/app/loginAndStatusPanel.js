@@ -28,7 +28,7 @@ var loginHTML = '<div id="loginandstatusPanel">\
 
 var menuHTML = '<div style="width:100%;height:100%;"> \
 									<div style="float:left;width:15%;height:100%;"> \
-										<div id="addPostit" style="width:100%;height:100%;font-size: 5vh;line-height:55px;text-align: center;  background-color: rgb(115, 240, 240);"> \
+										<div id="addPostit" style="width:100%;height:100%;font-size: 5vh;line-height:55px;text-align: center;cursor:pointer;background-color: rgb(115, 240, 240);"> \
 											<span>+</span> \
 										</div> \
 									</div> \

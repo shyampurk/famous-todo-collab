@@ -12,11 +12,12 @@ var PostitNode = require('./postitNode.js');
 
 
 
-function AppNode() {
+function AppNode(scene) {
 
     //Call parent constructor
     Node.call(this);
 
+    this.context = scene
     //Indicates if the strict grid layout is followed
     this.strictLayout = true;
 
@@ -71,22 +72,37 @@ function AppNode() {
         threshold: 10
     }, function(e){
 
-        console.log(e);
+        //console.log(e);
+
         if(e.status == "move"){
 
             var tempY = that.postitContainerPanelPos.getY() + e.centerDelta.y;
             that.postitContainerPanelPos.set(0, tempY );
-            console.log("New y pos " + tempY);
+          //  console.log("New y pos " + tempY);
 
         }
 
     });
+
+/*
+    var myComponent = {
+    onReceive: function(event, payload) {
+        console.log(
+            'Received ' + event + ' event!'
+            );
+        }
+    };
+    this.addComponent(myComponent);
+*/
 
 
 }
 
 // Extend the prototype
 AppNode.prototype = Object.create(Node.prototype);
+AppNode.prototype.constructor = Node;
+
+
 
 AppNode.prototype.initNode = function initNode(){
 
@@ -163,7 +179,7 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj){
 
   var criticality  = postitObj.postitCriticality;
 
-  var postit = new PostitNode(this.postitContainerPanel.addChild(),postitObj,{width:250,height:250});
+  var postit = new PostitNode(this.postitContainerPanel.addChild(),postitObj,{width:250,height:250},this.context);
   this.postitEntries.unshift(postit);
 
   var newpos = LayoutManager.getPostitPosition(1);
@@ -198,6 +214,36 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj){
 AppNode.prototype.deletePostit = function deletePostit(postitID){
 
   //Search for the child node with postitID in the postitEntries
+  var toBeDeletedEntry = null;
+  var toBeDeletedSeq = 0;
+
+  for(var i = 0 ; i < this.postitEntries.length ; i++){
+    if(this.postitEntries[i].getSeq() == postitID){
+      toBeDeletedEntry = this.postitEntries[i];
+      toBeDeletedSeq = i;
+      break;
+    }
+  }
+
+  if(toBeDeletedEntry){
+
+    toBeDeletedEntry.remove();
+
+    for(var i = toBeDeletedSeq ; i < (this.postitEntries.length - 1) ; i++){
+
+      var posArray = LayoutManager.getPostitPosition(i+1);
+
+      this.postitEntries[i+1].shift(posArray[0],posArray[1],posArray[2]);
+
+      this.postitEntries[i] = this.postitEntries[i+1];
+
+    }
+
+    this.postitEntries.pop();
+    this.postitContainerPanel.removeChild(toBeDeletedEntry.getNode());
+
+  }
+
 
   //Remove the child node from the app node
 
@@ -237,4 +283,13 @@ AppNode.prototype.reArrange = function reArrange(postitObj){
 
 }
 
+/*
+AppNode.prototype.onReceive = function onReceive(type, ev) {
+    //console.log(type + ' event received for ' + ev + ' !');
+    if (type === 'delete') {
+        console.log('Delete event received for ' + ev + ' !');
+    }
+
+};
+*/
 module.exports = AppNode;

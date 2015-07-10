@@ -23,8 +23,30 @@ function App(scene) {
     var rootNode = scene.addChild();
     var headerNode = rootNode.addChild();
 
-    var appNode = rootNode.addChild(new AppNode());
+    var appNode = rootNode.addChild(new AppNode(scene));
 
+    appNode.onReceive = function(e,p){
+
+      if(e === "del"){
+
+        console.log(
+                'Received ' + e + ' event!' + ' with ' + p.seqno
+                );
+
+        appNode.deletePostit(p.seqno);
+
+
+      }
+
+    }
+
+
+    setTimeout(function(){
+
+        console.log("Fired");
+        scene.emit("eventoo",{data : "payload"});
+
+    },5000);
 
     //headerNode.setSizeMode('relative','relative','relative')
     //  .setPosition(0,0)

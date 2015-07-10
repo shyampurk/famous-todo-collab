@@ -1,0 +1,23 @@
+
+.icons {
+
+  /*opacity:0;*/
+}
+
+.edit {
+  opacity : 0.5;
+  cursor : pointer;
+}
+
+.flip {
+  cursor : pointer;
+}
+
+.delete {
+  cursor : pointer;
+}
+/*
+.icons::focus{
+  opacity:1;
+}
+*/
