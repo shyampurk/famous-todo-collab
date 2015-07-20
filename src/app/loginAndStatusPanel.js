@@ -26,18 +26,32 @@ var loginHTML = '<div id="loginandstatusPanel">\
 	        </div>\
 	      </div>';
 
-var menuHTML = '<div style="width:100%;height:100%;"> \
+var menuHTMLPre = '<div id="menuContent" style="width:90%;height:100%;float:left;"> \
 									<div style="float:left;width:15%;height:100%;"> \
-										<div id="addPostit" style="width:100%;height:100%;font-size: 5vh;line-height:55px;text-align: center;cursor:pointer;background-color: rgb(115, 240, 240);"> \
-											<span>+</span> \
+										<div id="addPostit" style="width:100%;height:100%;text-align: center;cursor:pointer;background-color: rgb(115, 240, 240);"> \
+											<span><img src="images/add-icon.png" style="height:100%;width:100%;"/></span> \
+										</div> \
+									</div> \
+									<div style="float:left;width:15%;height:100%;"> \
+										<div id="gridPostit" style="width:100%;height:100%;text-align: center;cursor:pointer;padding:5px;"> \
+											<span><img src="images/grid-icon.png" style="height:100%;width:100%;"/></span> \
 										</div> \
 									</div> \
 									<div> \
 									</div> \
-									<div style="float:right;width:15%;height:100%;"> \
-										<span><img src="images/logout-icon.png" style="height:100%;width:100%;"/></span> \
-									</div> \
-								</div>';
+									<div style="float:left;width:50%;height:100%;text-align:center;"> \
+										<span>Postits : ';
+
+var menuHTMLPost =	'</span> \
+											</div> \
+											<div style="float:right;width:15%;height:100%;"> \
+												<span><img src="images/logout-icon.png" style="height:100%;width:100%;"/></span> \
+											</div> \
+										</div>'  ;
+
+var grabberHTML =	'<div id="menuGrabber" style="width:5%;height:100%;float:right;padding:2px;">  \
+											<span id="menuMinimize"><img src="images/mesh-icon.png" style="height:100%;width:100%;"/></span> \
+									</div>';
 
 var loginUser = 'demo';
 var loginPassword = '12345'
@@ -60,7 +74,12 @@ function LoginAndStatusPanel(postitObj) {
     this.loginAndStatusPanelPosition = new Position(this);
     this.loginAndStatusPanelSize = new Size(this);
 
+		this.menuCollapsedState = false;
+		this.postitCount = 0;
 
+		this.setMountPoint(1,0,0);
+
+		__initEvents.call(this);
 
 }
 
@@ -69,7 +88,7 @@ LoginAndStatusPanel.prototype = Object.create(Node.prototype);
 
 LoginAndStatusPanel.prototype.initPanel = function initPanel(){
 
-  this.loginAndStatusPanelPosition.set(100,100,0);
+  this.loginAndStatusPanelPosition.set(400,100,0);
   this.loginAndStatusPanelSize.setMode(1,1,1);
 
   this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getLoginPageHeight(),0);
@@ -99,18 +118,84 @@ function _postLoginHandler(){
 
   $('#loginPanel').fadeOut(100);
 
-  this.loginAndStatusPanelPosition.set(100,10,0,{duration : 500});
+  this.loginAndStatusPanelPosition.set(400,10,0,{duration : 500});
 
-  this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.6 ,0,{duration : 500},function(){
+  this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500},function(){
 
-    that.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - LayoutManager.getLoginPageWidth() - 10,10,0,{duration : 500});
 
-		that.loginAndStatusDiv.setContent(menuHTML);
+
+    //that.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - LayoutManager.getLoginPageWidth() - 10,5,0,{duration : 500});
+		that.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - 10,5,0,{duration : 500});
+
+
+
+		that.loginAndStatusDiv.setContent( menuHTMLPre + that.postitCount + menuHTMLPost + grabberHTML);
+
+
 
   });
 
 
 
 }
+
+function __initEvents(){
+
+	var that = this;
+
+	$('body').on('click','#menuMinimize',function(){
+
+		if(that.menuCollapsedState){
+
+			$('body').find('#menuContent').fadeIn();
+
+			$('body').find('#menuGrabber').css('width','5%');
+
+			that.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth() - 10,LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500},function(){
+
+				//that.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500});
+				//$('body').find('#menuGrabber').css('width','100%');
+
+
+			});
+
+
+			that.menuCollapsedState = false;
+
+		} else {
+
+			$('body').find('#menuContent').fadeOut();
+
+			that.loginAndStatusPanelSize.setAbsolute(15,LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500},function(){
+
+				$('body').find('#menuGrabber').css('width','100%');
+
+			});
+
+
+			that.menuCollapsedState = true;
+		}
+
+
+
+	});
+
+
+}
+
+LoginAndStatusPanel.prototype.increment = function increment(){
+
+	this.postitCount++;
+	this.loginAndStatusDiv.setContent( menuHTMLPre + this.postitCount + menuHTMLPost + grabberHTML);
+
+}
+
+LoginAndStatusPanel.prototype.decrement = function decrement(){
+
+	this.postitCount--;
+	this.loginAndStatusDiv.setContent( menuHTMLPre + this.postitCount + menuHTMLPost + grabberHTML);
+
+}
+
 
 module.exports = LoginAndStatusPanel;

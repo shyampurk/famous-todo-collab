@@ -112,6 +112,7 @@ AppNode.prototype.initNode = function initNode(){
   this.postitBasePanel.setSizeMode(1,1,1)
     .setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),0 )
     .setPosition(0, LayoutManager.getPostitPanelHeightOffset(),0);
+    //.setPosition(0, 100,0);
 
   this.postitContainerPanel.setSizeMode(1,1,1)
     .setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),0 )
@@ -194,6 +195,7 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj){
 
   }
 
+  this.loginAndStatusPanel.increment();
 
   //Animate the movement of all the existing nodes
 
@@ -244,6 +246,7 @@ AppNode.prototype.deletePostit = function deletePostit(postitID){
 
   }
 
+  this.loginAndStatusPanel.decrement();
 
   //Remove the child node from the app node
 

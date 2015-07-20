@@ -116,7 +116,7 @@ LayoutManager.getPostitPanelHeight = function getPostitPanelHeight(){
 
 LayoutManager.getPostitPanelHeightOffset = function getPostitPanelHeightOffset(){
 
-  return appDimensionObject.appHeaderHeight - 20;
+  return appDimensionObject.appHeaderHeight * 0.5 + 10;
 
 }
 
