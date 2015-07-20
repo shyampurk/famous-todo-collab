@@ -18,6 +18,10 @@ function AppNode(scene) {
     Node.call(this);
 
     this.context = scene
+
+    //Drag Status 0 indicates the default drag behaviour for the container Panel
+    //Drag status set to one indicates that a postit is being dragged
+    this.context.dragStatus = 0;
     //Indicates if the strict grid layout is followed
     this.strictLayout = true;
 
@@ -28,7 +32,7 @@ function AppNode(scene) {
 
     this.postitSeq = 0;
 
-    this.loginAndStatusPanel = this.addChild(new LoginAndStatusPanel());
+    this.loginAndStatusPanel = this.addChild(new LoginAndStatusPanel(this.context));
 
     this.postitBasePanel = this.addChild();
 
@@ -74,26 +78,19 @@ function AppNode(scene) {
 
         //console.log(e);
 
-        if(e.status == "move"){
+        if(that.context.dragStatus == 0){
 
-            var tempY = that.postitContainerPanelPos.getY() + e.centerDelta.y;
-            that.postitContainerPanelPos.set(0, tempY );
-          //  console.log("New y pos " + tempY);
+          if(e.status == "move"){
+
+              var tempY = that.postitContainerPanelPos.getY() + e.centerDelta.y;
+              that.postitContainerPanelPos.set(0, tempY );
+            //  console.log("New y pos " + tempY);
+
+          }
 
         }
 
     });
-
-/*
-    var myComponent = {
-    onReceive: function(event, payload) {
-        console.log(
-            'Received ' + event + ' event!'
-            );
-        }
-    };
-    this.addComponent(myComponent);
-*/
 
 
 }
@@ -190,7 +187,10 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj){
   for(var i = 1; i < this.postitEntries.length ; i++){
 
     var posArray = LayoutManager.getPostitPosition(i + 1);
-    this.postitEntries[i].shift(posArray[0],posArray[1],posArray[2]);
+    if(!this.postitEntries[i].checkOutOfOrder()){
+        this.postitEntries[i].shift(posArray[0],posArray[1],posArray[2]);
+    }
+
 
 
   }
@@ -283,6 +283,19 @@ AppNode.prototype.reArrange = function reArrange(postitObj){
   //Run through all the postits in the postitEntries array
   //Rearrange them as per the current layout
   //Set the strictLayout to true
+  console.log("rearrange triggered");
+
+  for(var i = 0 ; i < this.postitEntries.length ; i++){
+
+    var posArray = LayoutManager.getPostitPosition(i+1);
+
+    this.postitEntries[i].shift(posArray[0],posArray[1],posArray[2]);
+
+    if(this.postitEntries[i].checkOutOfOrder()){
+      this.postitEntries[i].resetOutOfOrder();
+    }
+
+  }
 
 }
 

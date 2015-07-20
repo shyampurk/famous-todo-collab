@@ -5,6 +5,7 @@ var DOMElement = require('famous/dom-renderables/DOMElement');
 var Position = require('famous/components/Position');
 var Size = require('famous/components/Size');
 var Rotation = require('famous/components/Rotation');
+var GestureHandler = require('famous/components/GestureHandler');
 
 var Transitionable = require('famous/transitions/Transitionable');
 
@@ -155,6 +156,42 @@ function PostitNode(node,obj,options,app) {
     };
     this.frontNode.addComponent(myComponent);
 
+    //Out of order nodes are positioned manually by user through dragging.
+    //Out of order behaviour can be reset by clickign on the grid icon
+    this.isOutofOrder = false;
+
+    var that = this;
+
+    this.gestures = new GestureHandler(this.node);
+    this.gestures.on({
+        event: 'drag',
+        points: 2,
+        threshold: 10
+    }, function(e){
+
+        if(e.status == "start"){
+            that.parent.dragStatus = 1;
+        }
+
+        if(e.status == "end"){
+            that.parent.dragStatus = 0;
+        }
+
+        if(e.status == "move"){
+
+          if(that.parent.dragStatus){
+
+            var tempY = that.postitPosition.getY() + e.centerDelta.y;
+            var tempX = that.postitPosition.getX() + e.centerDelta.x;
+            that.postitPosition.set(tempX, tempY , 1000 );
+
+            that.isOutofOrder = true;
+
+          }
+
+        }
+
+    });
 
 }
 
@@ -273,6 +310,20 @@ PostitNode.prototype.remove = function remove(){
   this.opacityTransitionable.set(1, { duration: 500 } );
 
 }
+
+PostitNode.prototype.checkOutOfOrder = function checkOutOfOrder(){
+
+  return this.isOutofOrder;
+
+}
+
+PostitNode.prototype.resetOutOfOrder = function resetOutOfOrder(){
+
+  this.isOutofOrder = false;
+
+}
+
+
 
 PostitNode.prototype.move = function move(){
 

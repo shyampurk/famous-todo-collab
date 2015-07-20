@@ -57,11 +57,12 @@ var loginUser = 'demo';
 var loginPassword = '12345'
 
 
-function LoginAndStatusPanel(postitObj) {
+function LoginAndStatusPanel(app) {
 
     //Call parent constructor
     Node.call(this);
 
+		this.context = app;
 
     this.loginAndStatusDiv = new DOMElement(this, {
        content : loginHTML,
@@ -142,6 +143,13 @@ function _postLoginHandler(){
 function __initEvents(){
 
 	var that = this;
+
+	$('body').on('click','#gridPostit',function(){
+
+		that.context.emit("rearrange");
+
+	});
+
 
 	$('body').on('click','#menuMinimize',function(){
 

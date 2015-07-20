@@ -36,6 +36,8 @@ function App(scene) {
         appNode.deletePostit(p.seqno);
 
 
+      } else if(e == "rearrange"){
+        appNode.reArrange();
       }
 
     }
