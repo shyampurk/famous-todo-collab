@@ -299,6 +299,20 @@ AppNode.prototype.reArrange = function reArrange(postitObj){
 
 }
 
+AppNode.prototype.logoff = function logoff(){
+
+  for(var i = 0 ; i < this.postitEntries.length ; i++){
+
+
+    this.postitContainerPanel.removeChild(this.postitEntries[i].getNode());
+
+
+  }
+
+
+
+}
+
 /*
 AppNode.prototype.onReceive = function onReceive(type, ev) {
     //console.log(type + ' event received for ' + ev + ' !');

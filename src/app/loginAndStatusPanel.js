@@ -44,7 +44,7 @@ var menuHTMLPre = '<div id="menuContent" style="width:90%;height:100%;float:left
 
 var menuHTMLPost =	'</span> \
 											</div> \
-											<div style="float:right;width:15%;height:100%;"> \
+											<div id="logoutPostit" style="float:right;width:15%;height:100%;"> \
 												<span><img src="images/logout-icon.png" style="height:100%;width:100%;"/></span> \
 											</div> \
 										</div>'  ;
@@ -130,6 +130,7 @@ function _postLoginHandler(){
 
 
 
+
 		that.loginAndStatusDiv.setContent( menuHTMLPre + that.postitCount + menuHTMLPost + grabberHTML);
 
 
@@ -147,6 +148,37 @@ function __initEvents(){
 	$('body').on('click','#gridPostit',function(){
 
 		that.context.emit("rearrange");
+
+
+
+	});
+
+	$('body').on('click','#logoutPostit',function(){
+
+		that.context.emit("logout");
+
+		$('#postitBasePanel').fadeOut(1000);
+
+		that.loginAndStatusPanelPosition.set(400,10,0,{duration : 500},function(){
+
+			that.loginAndStatusDiv.setContent('');
+
+			that.loginAndStatusPanelPosition.set(400,100,0,{duration : 500},function(){
+
+				that.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getLoginPageHeight(),0,{duration : 500},function(){
+
+					that.loginAndStatusDiv.setContent(loginHTML);
+
+				});
+
+
+
+			});
+
+
+		});
+
+
 
 	});
 

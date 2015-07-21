@@ -38,6 +38,8 @@ function App(scene) {
 
       } else if(e == "rearrange"){
         appNode.reArrange();
+      } else if(e == "logout"){
+        appNode.logoff();
       }
 
     }
