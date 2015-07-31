@@ -156,6 +156,7 @@ function __initEvents(){
 	$('body').on('click','#logoutPostit',function(){
 
 		that.context.emit("logout");
+		that.postitCount = 0;
 
 		$('#postitBasePanel').fadeOut(1000);
 

@@ -309,6 +309,7 @@ AppNode.prototype.logoff = function logoff(){
 
   }
 
+  this.postitEntries = [];
 
 
 }
