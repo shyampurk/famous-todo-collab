@@ -91,7 +91,8 @@ function App(scene) {
        properties:{
          'background-color':'rgb(62, 67, 68)',
          'color' : '#AAA7A7',
-         'line-height' : '75px',
+         //'line-height' : '35px',
+         'padding-top' : '2.5vh',
          'text-align' : 'center',
          'font-size' : '7.5vh'
        }
