@@ -69,6 +69,7 @@ function AppNode(scene) {
 
     var that = this;
 
+
     this.gestures = new GestureHandler(this.postitContainerPanel);
     this.gestures.on({
         event: 'drag',
@@ -91,6 +92,8 @@ function AppNode(scene) {
         }
 
     });
+    
+
 
 
 }

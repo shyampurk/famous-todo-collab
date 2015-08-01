@@ -1229,6 +1229,7 @@ module.exports = Rotation;
 'use strict';
 
 var Transitionable = require('../transitions/Transitionable');
+var SizeSystem = require('../core/SizeSystem');
 
 /**
  * Size component used for managing the size of the Node it is attached to.
@@ -1332,7 +1333,7 @@ Size.prototype.toString = function toString() {
  */
 Size.prototype.getValue = function getValue() {
     return {
-        sizeMode: this._node.value.sizeMode,
+        sizeMode: SizeSystem.get(this._node.getLocation()).getSizeMode(),
         absolute: {
             x: this._absolute.x.get(),
             y: this._absolute.y.get(),
@@ -1611,7 +1612,7 @@ Size.prototype.halt = function halt () {
 
 module.exports = Size;
 
-},{"../transitions/Transitionable":44}],6:[function(require,module,exports){
+},{"../core/SizeSystem":17,"../transitions/Transitionable":44}],6:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -2004,10 +2005,154 @@ var Commands = {
     DOM: 32,
     READY: 33,
     ALLOW_DEFAULT: 34,
-    PREVENT_DEFAULT: 35
+    PREVENT_DEFAULT: 35,
+    UNSUBSCRIBE: 36,
+    prettyPrint: function (buffer, start, count) {
+        var callback;
+        start = start ? start : 0;
+        var data = {
+            i: start,
+            result: ''
+        };
+        for (var len = count ? count + start : buffer.length ; data.i < len ; data.i++) {
+            callback = commandPrinters[buffer[data.i]];
+            if (!callback) throw new Error('PARSE ERROR: no command registered for: ' + buffer[data.i]);
+            callback(buffer, data);
+        }
+        return data.result;
+    }
+};
+
+var commandPrinters = [];
+
+commandPrinters[Commands.INIT_DOM] = function init_dom (buffer, data) {
+    data.result += data.i + '. INIT_DOM\n    tagName: ' + buffer[++data.i] + '\n\n';
+}; 
+
+commandPrinters[Commands.DOM_RENDER_SIZE] = function dom_render_size (buffer, data) {
+    data.result += data.i + '. DOM_RENDER_SIZE\n    selector: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.CHANGE_TRANSFORM] = function change_transform (buffer, data) {
+    data.result += data.i + '. CHANGE_TRANSFORM\n    val: [';
+    for (var j = 0 ; j < 16 ; j++) data.result += buffer[++data.i] + (j < 15 ? ', ' : '');
+    data.result += ']\n\n';
+};
+
+commandPrinters[Commands.CHANGE_SIZE] = function change_size (buffer, data) {
+    data.result += data.i + '. CHANGE_SIZE\n    x: ' + buffer[++data.i] + ', y: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.CHANGE_PROPERTY] = function change_property (buffer, data) {
+    data.result += data.i + '. CHANGE_PROPERTY\n    key: ' + buffer[++data.i] + ', value: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.CHANGE_CONTENT] = function change_content (buffer, data) {
+    data.result += data.i + '. CHANGE_CONTENT\n    content: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.CHANGE_ATTRIBUTE] = function change_attribute (buffer, data) {
+    data.result += data.i + '. CHANGE_ATTRIBUTE\n    key: ' + buffer[++data.i] + ', value: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.ADD_CLASS] = function add_class (buffer, data) {
+    data.result += data.i + '. ADD_CLASS\n    className: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.REMOVE_CLASS] = function remove_class (buffer, data) {
+    data.result += data.i + '. REMOVE_CLASS\n    className: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.SUBSCRIBE] = function subscribe (buffer, data) {
+    data.result += data.i + '. SUBSCRIBE\n    event: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_SET_DRAW_OPTIONS] = function gl_set_draw_options (buffer, data) {
+    data.result += data.i + '. GL_SET_DRAW_OPTIONS\n    options: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_AMBIENT_LIGHT] = function gl_ambient_light (buffer, data) {
+    data.result += data.i + '. GL_AMBIENT_LIGHT\n    r: ' + buffer[++data.i] + 'g: ' + buffer[++data.i] + 'b: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_LIGHT_POSITION] = function gl_light_position (buffer, data) {
+    data.result += data.i + '. GL_LIGHT_POSITION\n    x: ' + buffer[++data.i] + 'y: ' + buffer[++data.i] + 'z: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_LIGHT_COLOR] = function gl_light_color (buffer, data) {
+    data.result += data.i + '. GL_LIGHT_COLOR\n    r: ' + buffer[++data.i] + 'g: ' + buffer[++data.i] + 'b: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.MATERIAL_INPUT] = function material_input (buffer, data) {
+    data.result += data.i + '. MATERIAL_INPUT\n    key: ' + buffer[++data.i] + ', value: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_SET_GEOMETRY] = function gl_set_geometry (buffer, data) {
+    data.result += data.i + '. GL_SET_GEOMETRY\n   x: ' + buffer[++data.i] + ', y: ' + buffer[++data.i] + ', z: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_UNIFORMS] = function gl_uniforms (buffer, data) {
+    data.result += data.i + '. GL_UNIFORMS\n    key: ' + buffer[++data.i] + ', value: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_BUFFER_DATA] = function gl_buffer_data (buffer, data) {
+    data.result += data.i + '. GL_BUFFER_DATA\n    data: ';
+    for (var i = 0; i < 5 ; i++) data.result += buffer[++data.i] + ', ';
+    data.result += '\n\n';
+};
+
+commandPrinters[Commands.GL_CUTOUT_STATE] = function gl_cutout_state (buffer, data) {
+    data.result += data.i + '. GL_CUTOUT_STATE\n    state: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_MESH_VISIBILITY] = function gl_mesh_visibility (buffer, data) {
+    data.result += data.i + '. GL_MESH_VISIBILITY\n    visibility: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.GL_REMOVE_MESH] = function gl_remove_mesh (buffer, data) {
+    data.result += data.i + '. GL_REMOVE_MESH\n\n';
+};
+
+commandPrinters[Commands.PINHOLE_PROJECTION] = function pinhole_projection (buffer, data) {
+    data.result += data.i + '. PINHOLE_PROJECTION\n    depth: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.ORTHOGRAPHIC_PROJECTION] = function orthographic_projection (buffer, data) {
+    data.result += data.i + '. ORTHOGRAPHIC_PROJECTION\n';
+};
+
+commandPrinters[Commands.CHANGE_VIEW_TRANSFORM] = function change_view_transform (buffer, data) {
+    data.result += data.i + '. CHANGE_VIEW_TRANSFORM\n   value: [';
+    for (var i = 0; i < 16 ; i++) data.result += buffer[++data.i] + (i < 15 ? ', ' : '');
+    data.result += ']\n\n';
+};
+
+commandPrinters[Commands.PREVENT_DEFAULT] = function prevent_default (buffer, data) {
+    data.result += data.i + '. PREVENT_DEFAULT\n    value: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.ALLOW_DEFAULT] = function allow_default (buffer, data) {
+    data.result += data.i + '. ALLOW_DEFAULT\n    value: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.READY] = function ready (buffer, data) {
+    data.result += data.i + '. READY\n\n';
+};
+
+commandPrinters[Commands.WITH] = function w (buffer, data) {
+    data.result += data.i + '. **WITH**\n     path: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.TIME] = function time (buffer, data) {
+    data.result += data.i + '. TIME\n     ms: ' + buffer[++data.i] + '\n\n';
+};
+
+commandPrinters[Commands.NEED_SIZE_FOR] = function need_size_for (buffer, data) {
+    data.result += data.i + '. NEED_SIZE_FOR\n    selector: ' + buffer[++data.i] + '\n\n';
 };
 
 module.exports = Commands;
+
 
 },{}],9:[function(require,module,exports){
 /**
@@ -2114,7 +2259,7 @@ Dispatch.prototype.next = function next () {
  */
 Dispatch.prototype.breadthFirstNext = function breadthFirstNext () {
     var child = this._queue.shift();
-    if (!child) return void 0; 
+    if (!child) return void 0;
     this.addChildrenToQueue(child);
     return child;
 };
@@ -2261,6 +2406,12 @@ Dispatch.prototype.show = function show (path) {
 
     if (node.onShow) node.onShow();
 
+    var components = node.getComponents();
+    for (var i = 0, len = components.length ; i < len ; i++)
+        if (components[i] && components[i].onShow)
+            components[i].onShow();
+
+
     this.addChildrenToQueue(node);
     var child;
 
@@ -2288,6 +2439,12 @@ Dispatch.prototype.hide = function hide (path) {
         );
 
     if (node.onHide) node.onHide();
+
+    var components = node.getComponents();
+    for (var i = 0, len = components.length ; i < len ; i++)
+        if (components[i] && components[i].onHide)
+            components[i].onHide();
+
 
     this.addChildrenToQueue(node);
     var child;
@@ -2336,14 +2493,14 @@ Dispatch.prototype.dispatch = function dispatch (path, event, payload) {
     if (!event) throw new Error('dispatch requires an event name as it\'s second argument');
 
     var node = this._nodes[path];
-    if (!node)
-        throw new Error('No node registered at path: ' + path);
+    
+    if (!node) return;
 
     this.addChildrenToQueue(node);
     var child;
 
     while ((child = this.breadthFirstNext()))
-        if (child.onReceive)
+        if (child && child.onReceive)
             child.onReceive(event, payload);
 
 };
@@ -2571,6 +2728,12 @@ function FamousEngine() {
  * @return {FamousEngine} this
  */
 FamousEngine.prototype.init = function init(options) {
+    if (typeof window === 'undefined') {
+        throw new Error(
+            'FamousEngine#init needs to have access to the global window object. ' +
+            'Instantiate Compositor and UIManager manually in the UI thread.'
+        );
+    }
     this.compositor = options && options.compositor || new Compositor();
     this.renderLoop = options && options.renderLoop || new RequestAnimationFrameLoop();
     this.uiManager = new UIManager(this.getChannel(), this.compositor, this.renderLoop);
@@ -2628,7 +2791,7 @@ FamousEngine.prototype._update = function _update () {
     this._messages[1] = time;
 
     SizeSystem.update();
-    TransformSystem.onUpdate();
+    TransformSystem.update();
 
     while (nextQueue.length) queue.unshift(nextQueue.pop());
 
@@ -2858,7 +3021,7 @@ FamousEngine.prototype.addScene = function addScene (scene) {
 
     var current = this._scenes[selector];
     if (current && current !== scene) current.dismount();
-    if (!scene.isMounted()) scene.mount();
+    if (!scene.isMounted()) scene.mount(scene.getSelector());
     this._scenes[selector] = scene;
     return this;
 };
@@ -2980,7 +3143,7 @@ var Transform = require('./Transform');
  *
  * A Node is either mounted or unmounted. Unmounted nodes are detached from the
  * scene graph. Unmounted nodes have no parent node, while each mounted node has
- * exactly one parent. Nodes have an arbitary number of children, which can be
+ * exactly one parent. Nodes have an arbitrary number of children, which can be
  * dynamically added using {@link Node#addChild}.
  *
  * Each Node has an arbitrary number of `components`. Those components can
@@ -3016,7 +3179,7 @@ function Node () {
     this._requestingUpdate = false;
     this._inUpdate = false;
     this._mounted = false;
-    this._shown = false;
+    this._shown = true;
     this._updater = null;
     this._opacity = 1;
     this._UIEvents = [];
@@ -3030,6 +3193,8 @@ function Node () {
     this._freedChildIndicies = [];
     this._children = [];
 
+    this._fullChildren = [];
+
     this._parent = null;
 
     this._id = null;
@@ -3037,14 +3202,14 @@ function Node () {
     this._transformID = null;
     this._sizeID = null;
 
-    if (this.constructor.INIT_DEFAULT_COMPONENTS) this._init();
+    if (!this.constructor.NO_DEFAULT_COMPONENTS) this._init();
 }
 
 Node.RELATIVE_SIZE = 0;
 Node.ABSOLUTE_SIZE = 1;
 Node.RENDER_SIZE = 2;
 Node.DEFAULT_SIZE = 0;
-Node.INIT_DEFAULT_COMPONENTS = true;
+Node.NO_DEFAULT_COMPONENTS = false;
 
 /**
  * Protected method. Initializes a node with a default Transform and Size component
@@ -3063,7 +3228,7 @@ Node.prototype._init = function _init () {
  * Protected method. Sets the parent of this node such that it can be looked up.
  *
  * @method
- * 
+ *
  * @param {Node} parent The node to set as the parent of this
  *
  * @return {undefined} undefined;
@@ -3143,7 +3308,7 @@ Node.prototype.getLocation = function getLocation () {
 Node.prototype.getId = Node.prototype.getLocation;
 
 /**
- * Globally dispatches the event using the Dispatch. All descendent nodes will
+ * Dispatches the event using the Dispatch. All descendent nodes will
  * receive the dispatched event.
  *
  * @method emit
@@ -3176,7 +3341,7 @@ Node.prototype.getValue = function getValue () {
     var numberOfChildren = this._children.length;
     var numberOfComponents = this._components.length;
     var i = 0;
- 
+
     var value = {
         location: this.getId(),
         spec: {
@@ -3208,7 +3373,7 @@ Node.prototype.getValue = function getValue () {
         components: [],
         children: []
     };
-    
+
     if (value.location) {
         var transform = TransformSystem.get(this.getId());
         var size = SizeSystem.get(this.getId());
@@ -3279,6 +3444,19 @@ Node.prototype.getComputedValue = function getComputedValue () {
  * @return {Array.<Node>}   An array of children.
  */
 Node.prototype.getChildren = function getChildren () {
+    return this._fullChildren;
+};
+
+/**
+ * Method used internally to retrieve the children of a node. Each index in the
+ * returned array represents a path fragment.
+ *
+ * @method getRawChildren
+ * @private
+ *
+ * @return {Array}  An array of children. Might contain `null` elements.
+ */
+Node.prototype.getRawChildren = function getRawChildren() {
     return this._children;
 };
 
@@ -3312,8 +3490,10 @@ Node.prototype.getParent = function getParent () {
 Node.prototype.requestUpdate = function requestUpdate (requester) {
     if (this._inUpdate || !this.isMounted())
         return this.requestUpdateOnNextTick(requester);
-    this._updateQueue.push(requester);
-    if (!this._requestingUpdate) this._requestUpdate();
+    if (this._updateQueue.indexOf(requester) === -1) {
+        this._updateQueue.push(requester);
+        if (!this._requestingUpdate) this._requestUpdate();
+    }
     return this;
 };
 
@@ -3332,7 +3512,8 @@ Node.prototype.requestUpdate = function requestUpdate (requester) {
  * @return {Node} this
  */
 Node.prototype.requestUpdateOnNextTick = function requestUpdateOnNextTick (requester) {
-    this._nextUpdateQueue.push(requester);
+    if (this._nextUpdateQueue.indexOf(requester) === -1)
+        this._nextUpdateQueue.push(requester);
     return this;
 };
 
@@ -3346,6 +3527,18 @@ Node.prototype.requestUpdateOnNextTick = function requestUpdateOnNextTick (reque
  */
 Node.prototype.isMounted = function isMounted () {
     return this._mounted;
+};
+
+/**
+ * Checks if the node is being rendered. A node is being rendererd when it is
+ * mounted to a parent node **and** shown.
+ *
+ * @method isRendered
+ *
+ * @return {Boolean}    Boolean indicating whether the node is rendered or not.
+ */
+Node.prototype.isRendered = function isRendered () {
+    return this._mounted && this._shown;
 };
 
 /**
@@ -3382,7 +3575,7 @@ Node.prototype.getOpacity = function getOpacity () {
  * @return {Float32Array}   An array representing the mount point.
  */
 Node.prototype.getMountPoint = function getMountPoint () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._transformID).getMountPoint();
     else if (this.isMounted())
         return TransformSystem.get(this.getLocation()).getMountPoint();
@@ -3397,7 +3590,7 @@ Node.prototype.getMountPoint = function getMountPoint () {
  * @return {Float32Array}   An array representing the align.
  */
 Node.prototype.getAlign = function getAlign () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._transformID).getAlign();
     else if (this.isMounted())
         return TransformSystem.get(this.getLocation()).getAlign();
@@ -3412,7 +3605,7 @@ Node.prototype.getAlign = function getAlign () {
  * @return {Float32Array}   An array representing the origin.
  */
 Node.prototype.getOrigin = function getOrigin () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._transformID).getOrigin();
     else if (this.isMounted())
         return TransformSystem.get(this.getLocation()).getOrigin();
@@ -3427,7 +3620,7 @@ Node.prototype.getOrigin = function getOrigin () {
  * @return {Float32Array}   An array representing the position.
  */
 Node.prototype.getPosition = function getPosition () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._transformID).getPosition();
     else if (this.isMounted())
         return TransformSystem.get(this.getLocation()).getPosition();
@@ -3442,7 +3635,7 @@ Node.prototype.getPosition = function getPosition () {
  * @return {Float32Array} an array of four values, showing the rotation as a quaternion
  */
 Node.prototype.getRotation = function getRotation () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._transformID).getRotation();
     else if (this.isMounted())
         return TransformSystem.get(this.getLocation()).getRotation();
@@ -3457,7 +3650,7 @@ Node.prototype.getRotation = function getRotation () {
  * @return {Float32Array} an array showing the current scale vector
  */
 Node.prototype.getScale = function getScale () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._transformID).getScale();
     else if (this.isMounted())
         return TransformSystem.get(this.getLocation()).getScale();
@@ -3472,7 +3665,7 @@ Node.prototype.getScale = function getScale () {
  * @return {Float32Array} an array of numbers showing the current size mode
  */
 Node.prototype.getSizeMode = function getSizeMode () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._sizeID).getSizeMode();
     else if (this.isMounted())
         return SizeSystem.get(this.getLocation()).getSizeMode();
@@ -3487,7 +3680,7 @@ Node.prototype.getSizeMode = function getSizeMode () {
  * @return {Float32Array} a vector 3 showing the current proportional size
  */
 Node.prototype.getProportionalSize = function getProportionalSize () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._sizeID).getProportional();
     else if (this.isMounted())
         return SizeSystem.get(this.getLocation()).getProportional();
@@ -3502,7 +3695,7 @@ Node.prototype.getProportionalSize = function getProportionalSize () {
  * @return {Float32Array} a vector 3 showing the current differential size
  */
 Node.prototype.getDifferentialSize = function getDifferentialSize () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._sizeID).getDifferential();
     else if (this.isMounted())
         return SizeSystem.get(this.getLocation()).getDifferential();
@@ -3517,7 +3710,7 @@ Node.prototype.getDifferentialSize = function getDifferentialSize () {
  * @return {Float32Array} a vector 3 showing the current absolute size of the node
  */
 Node.prototype.getAbsoluteSize = function getAbsoluteSize () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._sizeID).getAbsolute();
     else if (this.isMounted())
         return SizeSystem.get(this.getLocation()).getAbsolute();
@@ -3534,7 +3727,7 @@ Node.prototype.getAbsoluteSize = function getAbsoluteSize () {
  * @return {Float32Array} a vector 3 showing the current render size
  */
 Node.prototype.getRenderSize = function getRenderSize () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._sizeID).getRender();
     else if (this.isMounted())
         return SizeSystem.get(this.getLocation()).getRender();
@@ -3549,7 +3742,7 @@ Node.prototype.getRenderSize = function getRenderSize () {
  * @return {Float32Array} a vector 3 of the final calculated side of the node
  */
 Node.prototype.getSize = function getSize () {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         return this.getComponent(this._sizeID).get();
     else if (this.isMounted())
         return SizeSystem.get(this.getLocation()).get();
@@ -3598,6 +3791,7 @@ Node.prototype.addChild = function addChild (child) {
                 this._freedChildIndicies.pop() : this._children.length;
 
         this._children[index] = child;
+        this._fullChildren.push(child);
     }
 
     if (this.isMounted())
@@ -3626,8 +3820,20 @@ Node.prototype.removeChild = function removeChild (child) {
 
         if (child.isMounted()) child.dismount();
 
+        var fullChildrenIndex = this._fullChildren.indexOf(child);
+        var len = this._fullChildren.length;
+        var i = 0;
+
+        for (i = fullChildrenIndex; i < len-1; i++)
+            this._fullChildren[i] = this._fullChildren[i + 1];
+
+        this._fullChildren.pop();
+
         return true;
-    } else throw new Error('Node is not a child of this node');
+    }
+    else {
+        return false;
+    }
 };
 
 /**
@@ -3694,7 +3900,7 @@ Node.prototype.removeComponent = function removeComponent (component) {
 };
 
 /**
- * Removes a node's subscription to a particular UIEvent. All components 
+ * Removes a node's subscription to a particular UIEvent. All components
  * on the node will have the opportunity to remove all listeners depending
  * on this event.
  *
@@ -3728,7 +3934,7 @@ Node.prototype.removeUIEvent = function removeUIEvent (eventName) {
  *
  * @param {String} eventName the name of the event
  *
- * @return {undefined} undefined
+ * @return {Node} this
  */
 Node.prototype.addUIEvent = function addUIEvent (eventName) {
     var UIEvents = this.getUIEvents();
@@ -3743,6 +3949,8 @@ Node.prototype.addUIEvent = function addUIEvent (eventName) {
             if (component && component.onAddUIEvent) component.onAddUIEvent(eventName);
         }
     }
+
+    return this;
 };
 
 /**
@@ -3827,7 +4035,7 @@ Node.prototype.hide = function hide () {
  * @return {Node} this
  */
 Node.prototype.setAlign = function setAlign (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._transformID).setAlign(x, y, z);
     else if (this.isMounted())
         TransformSystem.get(this.getLocation()).setAlign(x, y, z);
@@ -3848,7 +4056,7 @@ Node.prototype.setAlign = function setAlign (x, y, z) {
  * @return {Node} this
  */
 Node.prototype.setMountPoint = function setMountPoint (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._transformID).setMountPoint(x, y, z);
     else if (this.isMounted())
         TransformSystem.get(this.getLocation()).setMountPoint(x, y, z);
@@ -3869,7 +4077,7 @@ Node.prototype.setMountPoint = function setMountPoint (x, y, z) {
  * @return {Node} this
  */
 Node.prototype.setOrigin = function setOrigin (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._transformID).setOrigin(x, y, z);
     else if (this.isMounted())
         TransformSystem.get(this.getLocation()).setOrigin(x, y, z);
@@ -3890,7 +4098,7 @@ Node.prototype.setOrigin = function setOrigin (x, y, z) {
  * @return {Node} this
  */
 Node.prototype.setPosition = function setPosition (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._transformID).setPosition(x, y, z);
     else if (this.isMounted())
         TransformSystem.get(this.getLocation()).setPosition(x, y, z);
@@ -3914,7 +4122,7 @@ Node.prototype.setPosition = function setPosition (x, y, z) {
  * @return {Node} this
  */
 Node.prototype.setRotation = function setRotation (x, y, z, w) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._transformID).setRotation(x, y, z, w);
     else if (this.isMounted())
         TransformSystem.get(this.getLocation()).setRotation(x, y, z, w);
@@ -3935,7 +4143,7 @@ Node.prototype.setRotation = function setRotation (x, y, z, w) {
  * @return {Node} this
  */
 Node.prototype.setScale = function setScale (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._transformID).setScale(x, y, z);
     else if (this.isMounted())
         TransformSystem.get(this.getLocation()).setScale(x, y, z);
@@ -3996,7 +4204,7 @@ Node.prototype.setOpacity = function setOpacity (val) {
  * @return {Node} this
  */
 Node.prototype.setSizeMode = function setSizeMode (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._sizeID).setSizeMode(x, y, z);
     else if (this.isMounted())
         SizeSystem.get(this.getLocation()).setSizeMode(x, y, z);
@@ -4018,7 +4226,7 @@ Node.prototype.setSizeMode = function setSizeMode (x, y, z) {
  * @return {Node} this
  */
 Node.prototype.setProportionalSize = function setProportionalSize (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._sizeID).setProportional(x, y, z);
     else if (this.isMounted())
         SizeSystem.get(this.getLocation()).setProportional(x, y, z);
@@ -4045,7 +4253,7 @@ Node.prototype.setProportionalSize = function setProportionalSize (x, y, z) {
  * @return {Node} this
  */
 Node.prototype.setDifferentialSize = function setDifferentialSize (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._sizeID).setDifferential(x, y, z);
     else if (this.isMounted())
         SizeSystem.get(this.getLocation()).setDifferential(x, y, z);
@@ -4065,7 +4273,7 @@ Node.prototype.setDifferentialSize = function setDifferentialSize (x, y, z) {
  * @return {Node} this
  */
 Node.prototype.setAbsoluteSize = function setAbsoluteSize (x, y, z) {
-    if (this.constructor.INIT_DEFAULT_COMPONENTS)
+    if (!this.constructor.NO_DEFAULT_COMPONENTS)
         this.getComponent(this._sizeID).setAbsolute(x, y, z);
     else if (this.isMounted())
         SizeSystem.get(this.getLocation()).setAbsolute(x, y, z);
@@ -4112,8 +4320,6 @@ Node.prototype.update = function update (time){
     var queue = this._updateQueue;
     var item;
 
-    if (this.onUpdate) this.onUpdate();
-
     while (nextQueue.length) queue.unshift(nextQueue.pop());
 
     while (queue.length) {
@@ -4150,7 +4356,7 @@ Node.prototype.mount = function mount (path) {
     if (this.isMounted())
         throw new Error('Node is already mounted at: ' + this.getLocation());
 
-    if (this.constructor.INIT_DEFAULT_COMPONENTS){
+    if (!this.constructor.NO_DEFAULT_COMPONENTS){
         TransformSystem.registerTransformAtPath(path, this.getComponent(this._transformID));
         SizeSystem.registerSizeAtPath(path, this.getComponent(this._sizeID));
     }
@@ -4191,19 +4397,19 @@ module.exports = Node;
 },{"./Dispatch":9,"./Size":16,"./SizeSystem":17,"./Transform":18,"./TransformSystem":19}],13:[function(require,module,exports){
 /**
  * The MIT License (MIT)
- * 
+ *
  * Copyright (c) 2015 Famous Industries Inc.
- * 
+ *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
  * in the Software without restriction, including without limitation the rights
  * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
  * copies of the Software, and to permit persons to whom the Software is
  * furnished to do so, subject to the following conditions:
- * 
+ *
  * The above copyright notice and this permission notice shall be included in
  * all copies or substantial portions of the Software.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
  * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
@@ -4218,149 +4424,149 @@ module.exports = Node;
 /**
  * A collection of utilities for handling paths.
  *
- * @class
+ * @namespace
  */
-function PathUtils () {
-}
+var Path = {
 
-/**
- * determines if the passed in path has a trailing slash. Paths of the form
- * 'body/0/1/' return true, while paths of the form 'body/0/1' return false.
- *
- * @method
- *
- * @param {String} path the path
- *
- * @return {Boolean} whether or not the path has a trailing slash
- */
-PathUtils.prototype.hasTrailingSlash = function hasTrailingSlash (path) {
-    return path[path.length - 1] === '/';
-};
+    /**
+     * determines if the passed in path has a trailing slash. Paths of the form
+     * 'body/0/1/' return true, while paths of the form 'body/0/1' return false.
+     *
+     * @method
+     *
+     * @param {String} path the path
+     *
+     * @return {Boolean} whether or not the path has a trailing slash
+     */
+    hasTrailingSlash: function hasTrailingSlash (path) {
+        return path[path.length - 1] === '/';
+    },
 
-/**
- * Returns the depth in the tree this path represents. Essentially counts
- * the slashes ignoring a trailing slash.
- *
- * @method
- *
- * @param {String} path the path
- *
- * @return {Number} the depth in the tree that this path represents
- */
-PathUtils.prototype.depth = function depth (path) {
-    var count = 0;
-    var length = path.length;
-    var len = this.hasTrailingSlash(path) ? length - 1 : length;
-    var i = 0;
-    for (; i < len ; i++) count += path[i] === '/' ? 1 : 0;
-    return count;
-};
+    /**
+     * Returns the depth in the tree this path represents. Essentially counts
+     * the slashes ignoring a trailing slash.
+     *
+     * @method
+     *
+     * @param {String} path the path
+     *
+     * @return {Number} the depth in the tree that this path represents
+     */
+    depth: function depth (path) {
+        var count = 0;
+        var length = path.length;
+        var len = this.hasTrailingSlash(path) ? length - 1 : length;
+        var i = 0;
+        for (; i < len ; i++) count += path[i] === '/' ? 1 : 0;
+        return count;
+    },
 
-/**
- * Gets the position of this path in relation to its siblings.
- *
- * @method
- *
- * @param {String} path the path
- *
- * @return {Number} the index of this path in relation to its siblings.
- */
-PathUtils.prototype.index = function index (path) {
-    var length = path.length;
-    var len = this.hasTrailingSlash(path) ? length - 1 : length;
-    while (len--) if (path[len] === '/') break;
-    var result = parseInt(path.substring(len + 1));
-    return isNaN(result) ? 0 : result;
-};
+    /**
+     * Gets the position of this path in relation to its siblings.
+     *
+     * @method
+     *
+     * @param {String} path the path
+     *
+     * @return {Number} the index of this path in relation to its siblings.
+     */
+    index: function index (path) {
+        var length = path.length;
+        var len = this.hasTrailingSlash(path) ? length - 1 : length;
+        while (len--) if (path[len] === '/') break;
+        var result = parseInt(path.substring(len + 1));
+        return isNaN(result) ? 0 : result;
+    },
 
-/**
- * Gets the position of the path at a particular breadth in relationship
- * to its siblings
- *
- * @method
- *
- * @param {String} path the path
- * @param {Number} depth the breadth at which to find the index
- *
- * @return {Number} index at the particular depth
- */
-PathUtils.prototype.indexAtDepth = function indexAtDepth (path, depth) {
-    var i = 0;
-    var len = path.length;
-    var index = 0;
-    for (; i < len ; i++) {
-        if (path[i] === '/') index++;
-        if (index === depth) {
-            path = path.substring(i ? i + 1 : i);
-            index = path.indexOf('/');
-            path = index === -1 ? path : path.substring(0, index);
-            index = parseInt(path);
-            return isNaN(index) ? path : index;
+    /**
+     * Gets the position of the path at a particular breadth in relationship
+     * to its siblings
+     *
+     * @method
+     *
+     * @param {String} path the path
+     * @param {Number} depth the breadth at which to find the index
+     *
+     * @return {Number} index at the particular depth
+     */
+    indexAtDepth: function indexAtDepth (path, depth) {
+        var i = 0;
+        var len = path.length;
+        var index = 0;
+        for (; i < len ; i++) {
+            if (path[i] === '/') index++;
+            if (index === depth) {
+                path = path.substring(i ? i + 1 : i);
+                index = path.indexOf('/');
+                path = index === -1 ? path : path.substring(0, index);
+                index = parseInt(path);
+                return isNaN(index) ? path : index;
+            }
         }
+    },
+
+    /**
+     * returns the path of the passed in path's parent.
+     *
+     * @method
+     *
+     * @param {String} path the path
+     *
+     * @return {String} the path of the passed in path's parent
+     */
+    parent: function parent (path) {
+        return path.substring(0, path.lastIndexOf('/', path.length - 2));
+    },
+
+    /**
+     * Determines whether or not the first argument path is the direct child
+     * of the second argument path.
+     *
+     * @method
+     *
+     * @param {String} child the path that may be a child
+     * @param {String} parent the path that may be a parent
+     *
+     * @return {Boolean} whether or not the first argument path is a child of the second argument path
+     */
+    isChildOf: function isChildOf (child, parent) {
+        return this.isDescendentOf(child, parent) && this.depth(child) === this.depth(parent) + 1;
+    },
+
+    /**
+     * Returns true if the first argument path is a descendent of the second argument path.
+     *
+     * @method
+     *
+     * @param {String} child potential descendent path
+     * @param {String} parent potential ancestor path
+     *
+     * @return {Boolean} whether or not the path is a descendent
+     */
+    isDescendentOf: function isDescendentOf(child, parent) {
+        if (child === parent) return false;
+        child = this.hasTrailingSlash(child) ? child : child + '/';
+        parent = this.hasTrailingSlash(parent) ? parent : parent + '/';
+        return this.depth(parent) < this.depth(child) && child.indexOf(parent) === 0;
+    },
+
+    /**
+     * returns the selector portion of the path.
+     *
+     * @method
+     *
+     * @param {String} path the path
+     *
+     * @return {String} the selector portion of the path.
+     */
+    getSelector: function getSelector(path) {
+        var index = path.indexOf('/');
+        return index === -1 ? path : path.substring(0, index);
     }
+
 };
 
-/**
- * returns the path of the passed in path's parent.
- *
- * @method
- *
- * @param {String} path the path
- *
- * @return {String} the path of the passed in path's parent
- */
-PathUtils.prototype.parent = function parent (path) {
-    return path.substring(0, path.lastIndexOf('/', path.length - 2));
-};
-
-/**
- * Determines whether or not the first argument path is the direct child
- * of the second argument path.
- *
- * @method
- *
- * @param {String} child the path that may be a child
- * @param {String} parent the path that may be a parent
- *
- * @return {Boolean} whether or not the first argument path is a child of the second argument path
- */
-PathUtils.prototype.isChildOf = function isChildOf (child, parent) {
-    return this.isDescendentOf(child, parent) && this.depth(child) === this.depth(parent) + 1;
-};
-
-/**
- * Returns true if the first argument path is a descendent of the second argument path.
- *
- * @method
- *
- * @param {String} child potential descendent path
- * @param {String} parent potential ancestor path
- *
- * @return {Boolean} whether or not the path is a descendent
- */
-PathUtils.prototype.isDescendentOf = function isDescendentOf(child, parent) {
-    if (child === parent) return false;
-    child = this.hasTrailingSlash(child) ? child : child + '/';
-    parent = this.hasTrailingSlash(parent) ? parent : parent + '/';
-    return this.depth(parent) < this.depth(child) && child.indexOf(parent) === 0;
-};
-
-/**
- * returns the selector portion of the path.
- *
- * @method
- *
- * @param {String} path the path
- *
- * @return {String} the selector portion of the path.
- */
-PathUtils.prototype.getSelector = function getSelector(path) {
-    var index = path.indexOf('/');
-    return index === -1 ? path : path.substring(0, index);
-};
-
-module.exports = new PathUtils();
-
+module.exports = Path;
 
 },{}],14:[function(require,module,exports){
 /**
@@ -4572,6 +4778,7 @@ var SizeSystem = require('./SizeSystem');
  *
  * @class Scene
  * @constructor
+ * @extends Node
  *
  * @param {String} selector a string which is a dom selector
  *                 signifying which dom element the context
@@ -4608,6 +4815,7 @@ function Scene (selector, updater) {
 // Scene inherits from node
 Scene.prototype = Object.create(Node.prototype);
 Scene.prototype.constructor = Scene;
+Scene.NO_DEFAULT_COMPONENTS = true;
 
 /**
  * Scene getUpdater function returns the passed in updater
@@ -5352,6 +5560,7 @@ function Transform (parent) {
     this._lastEuler = false;
     this.parent = parent ? parent : null;
     this.breakPoint = false;
+    this.calculatingWorldMatrix = false;
 }
 
 Transform.IDENT = [ 1, 0, 0, 0,
@@ -5373,6 +5582,7 @@ Transform.LOCAL_CHANGED = 2;
 Transform.prototype.reset = function reset () {
     this.parent = null;
     this.breakPoint = false;
+    this.calculatingWorldMatrix = false;
 };
 
 /**
@@ -5410,6 +5620,18 @@ Transform.prototype.getParent = function getParent () {
  */
 Transform.prototype.setBreakPoint = function setBreakPoint () {
     this.breakPoint = true;
+    this.calculatingWorldMatrix = true;
+};
+
+/**
+ * Set this node to calculate the world matrix.
+ *
+ * @method
+ *
+ * @return {undefined} undefined
+ */
+Transform.prototype.setCalculateWorldMatrix = function setCalculateWorldMatrix () {
+    this.calculatingWorldMatrix = true;
 };
 
 /**
@@ -5442,7 +5664,7 @@ Transform.prototype.getLocalTransform = function getLocalTransform () {
  * @return {Float32Array} world transform.
  */
 Transform.prototype.getWorldTransform = function getWorldTransform () {
-    if (!this.isBreakPoint())
+    if (!this.isBreakPoint() && !this.calculatingWorldMatrix)
         throw new Error('This transform is not calculating world transforms');
     return this.global;
 };
@@ -5830,7 +6052,7 @@ function fromNode (node, transform) {
                  (target[2] * originX + target[6] * originY + target[10] * originZ);
     target[15] = 1;
 
-    if (transform.isBreakPoint() && transform.calculateWorldMatrix())
+    if (transform.calculatingWorldMatrix && transform.calculateWorldMatrix())
         changed |= Transform.WORLD_CHANGED;
 
     if (t00 !== target[0] ||
@@ -5955,7 +6177,7 @@ function fromNodeWithParent (node, transform) {
     target[14] = p02 * tx + p12 * ty + p22 * tz + p32;
     target[15] = 1;
 
-    if (transform.isBreakPoint() && transform.calculateWorldMatrix())
+    if (transform.calculatingWorldMatrix && transform.calculateWorldMatrix())
         changed |= Transform.WORLD_CHANGED;
 
     if (t00 !== target[0] ||
@@ -6117,7 +6339,8 @@ function TransformSystem () {
  * @param {Transform | undefined} transform optional transform to register.
  */
 TransformSystem.prototype.registerTransformAtPath = function registerTransformAtPath (path, transform) {
-    if (!PathUtils.depth(path)) return this.pathStore.insert(path, transform ? transform : new Transform());
+    if (!PathUtils.depth(path))
+        return this.pathStore.insert(path, transform ? transform : new Transform());
 
     var parent = this.pathStore.get(PathUtils.parent(path));
 
@@ -6162,6 +6385,21 @@ TransformSystem.prototype.makeBreakPointAt = function makeBreakPointAt (path) {
 };
 
 /**
+ * Method that will make the transform at this location calculate a world matrix.
+ *
+ * @method
+ *
+ * @param {String} path The path at which to make the transform calculate a world matrix
+ *
+ * @return {undefined} undefined
+ */
+TransformSystem.prototype.makeCalculateWorldMatrixAt = function makeCalculateWorldMatrixAt (path) {
+        var transform = this.pathStore.get(path);
+        if (!transform) throw new Error('No transform Registered at path: ' + path);
+        transform.setCalculateWorldMatrix();
+};
+
+/**
  * Returns the instance of the transform class associated with the given path,
  * or undefined if no transform is associated.
  *
@@ -6176,16 +6414,16 @@ TransformSystem.prototype.get = function get (path) {
 };
 
 /**
- * onUpdate is called when the transform system requires an update.
+ * update is called when the transform system requires an update.
  * It traverses the transform array and evaluates the necessary transforms
  * in the scene graph with the information from the corresponding node
  * in the scene graph
  *
- * @method onUpdate
+ * @method update
  *
  * @return {undefined} undefined
  */
-TransformSystem.prototype.onUpdate = function onUpdate () {
+TransformSystem.prototype.update = function update () {
     var transforms = this.pathStore.getItems();
     var paths = this.pathStore.getPaths();
     var transform;
@@ -6425,7 +6663,6 @@ function worldTransformChanged (node, components, transform) {
 
 module.exports = new TransformSystem();
 
-
 },{"./Dispatch":9,"./Path":13,"./PathStore":14,"./Transform":18}],20:[function(require,module,exports){
 /**
  * The MIT License (MIT)
@@ -6456,8 +6693,7 @@ module.exports = new TransformSystem();
 var CallbackStore = require('../utilities/CallbackStore');
 var TransformSystem = require('../core/TransformSystem');
 var Commands = require('../core/Commands');
-
-var RENDER_SIZE = 2;
+var Size = require('../core/Size');
 
 /**
  * A DOMElement is a component that can be added to a Node with the
@@ -6486,7 +6722,7 @@ function DOMElement(node, options) {
     if (!node) throw new Error('DOMElement must be instantiated on a node');
 
     this._changeQueue = [];
-    
+
     this._requestingUpdate = false;
     this._renderSized = false;
     this._requestRenderSize = false;
@@ -6502,10 +6738,9 @@ function DOMElement(node, options) {
     this._tagName = options && options.tagName ? options.tagName : 'div';
     this._renderSize = [0, 0, 0];
 
-    this._id = node ? node.addComponent(this) : null;
     this._node = node;
 
-    this.onSizeModeChange.apply(this, node.getSizeMode());
+    if (node) node.addComponent(this);
 
     this._callbacks = new CallbackStore();
 
@@ -6602,6 +6837,7 @@ DOMElement.prototype.onMount = function onMount(node, id) {
     this._id = id;
     this._UIEvents = node.getUIEvents().slice(0);
     TransformSystem.makeBreakPointAt(node.getLocation());
+    this.onSizeModeChange.apply(this, node.getSizeMode());
     this.draw();
     this.setAttribute('data-fa-path', node.getLocation());
 };
@@ -6700,8 +6936,8 @@ DOMElement.prototype.onTransformChange = function onTransformChange (transform) 
  */
 DOMElement.prototype.onSizeChange = function onSizeChange(x, y) {
     var sizeMode = this._node.getSizeMode();
-    var sizedX = sizeMode[0] !== RENDER_SIZE;
-    var sizedY = sizeMode[1] !== RENDER_SIZE;
+    var sizedX = sizeMode[0] !== Size.RENDER;
+    var sizedY = sizeMode[1] !== Size.RENDER;
     if (this._initialized)
         this._changeQueue.push(Commands.CHANGE_SIZE,
             sizedX ? x : sizedX,
@@ -6831,9 +7067,9 @@ DOMElement.prototype.allowDefault = function allowDefault (uiEvent) {
  */
 DOMElement.prototype._unsubscribe = function _unsubscribe (UIEvent) {
     if (this._initialized) {
-        this._changeQueue.push('UNSUBSCRIBE', UIEvent);
+        this._changeQueue.push(Commands.UNSUBSCRIBE, UIEvent);
     }
-    
+
     if (!this._requestingUpdate) this._requestUpdate();
 };
 
@@ -6851,7 +7087,7 @@ DOMElement.prototype._unsubscribe = function _unsubscribe (UIEvent) {
  * @return {undefined} undefined
  */
 DOMElement.prototype.onSizeModeChange = function onSizeModeChange(x, y, z) {
-    if (x === RENDER_SIZE || y === RENDER_SIZE || z === RENDER_SIZE) {
+    if (x === Size.RENDER || y === Size.RENDER || z === Size.RENDER) {
         this._renderSized = true;
         this._requestRenderSize = true;
     }
@@ -6880,7 +7116,7 @@ DOMElement.prototype.getRenderSize = function getRenderSize() {
  * @return {undefined} undefined
  */
 DOMElement.prototype._requestUpdate = function _requestUpdate() {
-    if (!this._requestingUpdate) {
+    if (!this._requestingUpdate && this._id) {
         this._node.requestUpdate(this._id);
         this._requestingUpdate = true;
     }
@@ -7120,7 +7356,7 @@ DOMElement.prototype.draw = function draw() {
 
 module.exports = DOMElement;
 
-},{"../core/Commands":8,"../core/TransformSystem":19,"../utilities/CallbackStore":45}],21:[function(require,module,exports){
+},{"../core/Commands":8,"../core/Size":16,"../core/TransformSystem":19,"../utilities/CallbackStore":45}],21:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -7151,6 +7387,7 @@ var ElementCache = require('./ElementCache');
 var math = require('./Math');
 var PathUtils = require('../core/Path');
 var vendorPrefix = require('../utilities/vendorPrefix');
+var CallbackStore = require('../utilities/CallbackStore');
 var eventMap = require('./events/EventMap');
 
 var TRANSFORM = null;
@@ -7190,6 +7427,9 @@ function DOMRenderer (element, selector, compositor) {
 
     this._children = []; // a register for holding the children of the
                          // current target.
+
+     this._insertElCallbackStore = new CallbackStore();
+     this._removeElCallbackStore = new CallbackStore();
 
     this._root = new ElementCache(element, selector); // the root
                                                       // of the dom tree that this
@@ -7232,20 +7472,6 @@ DOMRenderer.prototype.subscribe = function subscribe(type) {
     this._assertTargetLoaded();
     this._listen(type);
     this._target.subscribe[type] = true;
-};
-
-/**
- * Unsubscribes from all events that are of the specified type.
- *
- * @method
- *
- * @param  {String} type    Event type to unsubscribe from.
- * @return {undefined}      undefined
- */
-DOMRenderer.prototype.unsubscribe = function unsubscribe(type) {
-    this._assertTargetLoaded();
-    this._listen(type);
-    this._target.subscribe[type] = false;
 };
 
 /**
@@ -7309,13 +7535,11 @@ DOMRenderer.prototype._listen = function _listen(type) {
 };
 
 /**
- * Removes an EventListener of given type from the element on which it was
- * registered.
+ * Unsubscribes from all events that are of the specified type.
  *
  * @method
  *
  * @param {String} type DOM event type (e.g. click, mouseover).
- *
  * @return {undefined} undefined
  */
 DOMRenderer.prototype.unsubscribe = function unsubscribe(type) {
@@ -7510,6 +7734,7 @@ DOMRenderer.prototype.findParent = function findParent () {
         path = path.substring(0, path.lastIndexOf('/'));
         parent = this._elements[path];
     }
+
     this._parent = parent;
     return parent;
 };
@@ -7518,6 +7743,7 @@ DOMRenderer.prototype.findParent = function findParent () {
  * Used for determining the target loaded under the current path.
  *
  * @method
+ * @deprecated
  *
  * @return {ElementCache|undefined} Element loaded under defined path.
  */
@@ -7526,9 +7752,8 @@ DOMRenderer.prototype.findTarget = function findTarget() {
     return this._target;
 };
 
-
 /**
- * Loads the passed in path.
+ * Loads the passed in path into the DOMRenderer.
  *
  * @method
  *
@@ -7538,6 +7763,7 @@ DOMRenderer.prototype.findTarget = function findTarget() {
  */
 DOMRenderer.prototype.loadPath = function loadPath (path) {
     this._path = path;
+    this._target = this._elements[this._path];
     return this._path;
 };
 
@@ -7583,31 +7809,29 @@ DOMRenderer.prototype.resolveChildren = function resolveChildren (element, paren
  * @return {undefined} undefined
  */
 DOMRenderer.prototype.insertEl = function insertEl (tagName) {
-    if (!this._target ||
-        this._target.element.tagName.toLowerCase() !== tagName.toLowerCase()) {
 
-        this.findParent();
+    this.findParent();
 
-        this._assertParentLoaded();
+    this._assertParentLoaded();
 
-        if (this._parent.void)
-            throw new Error(
-                this._parent.path + ' is a void element. ' +
-                'Void elements are not allowed to have children.'
-            );
+    if (this._parent.void)
+        throw new Error(
+            this._parent.path + ' is a void element. ' +
+            'Void elements are not allowed to have children.'
+        );
 
-        if (this._target) this._parent.element.removeChild(this._target.element);
+    if (!this._target) this._target = new ElementCache(document.createElement(tagName), this._path);
 
-        this._target = new ElementCache(document.createElement(tagName), this._path);
+    var el = this._target.element;
+    var parent = this._parent.element;
 
-        var el = this._target.element;
-        var parent = this._parent.element;
+    this.resolveChildren(el, parent);
 
-        this.resolveChildren(el, parent);
+    parent.appendChild(el);
+    this._elements[this._path] = this._target;
 
-        this._parent.element.appendChild(this._target.element);
-        this._elements[this._path] = this._target;
-    }
+    this._insertElCallbackStore.trigger(this._path, this._target);
+
 };
 
 
@@ -7631,7 +7855,7 @@ DOMRenderer.prototype.setProperty = function setProperty (name, value) {
  * Sets the size of the currently loaded target.
  * Removes any explicit sizing constraints when passed in `false`
  * ("true-sizing").
- * 
+ *
  * Invoking setSize is equivalent to a manual invocation of `setWidth` followed
  * by `setHeight`.
  *
@@ -7651,9 +7875,9 @@ DOMRenderer.prototype.setSize = function setSize (width, height) {
 
 /**
  * Sets the width of the currently loaded ElementCache.
- * 
+ *
  * @method
- *  
+ *
  * @param  {Number|false} width     The explicit width to be set on the
  *                                  ElementCache's target (and content) element.
  *                                  `false` removes any explicit sizing
@@ -7661,7 +7885,7 @@ DOMRenderer.prototype.setSize = function setSize (width, height) {
  *                                  Elements.
  *
  * @return {undefined} undefined
- */ 
+ */
 DOMRenderer.prototype.setWidth = function setWidth(width) {
     this._assertTargetLoaded();
 
@@ -7684,9 +7908,9 @@ DOMRenderer.prototype.setWidth = function setWidth(width) {
 
 /**
  * Sets the height of the currently loaded ElementCache.
- * 
+ *
  * @method  setHeight
- *  
+ *
  * @param  {Number|false} height    The explicit height to be set on the
  *                                  ElementCache's target (and content) element.
  *                                  `false` removes any explicit sizing
@@ -7694,7 +7918,7 @@ DOMRenderer.prototype.setWidth = function setWidth(width) {
  *                                  Elements.
  *
  * @return {undefined} undefined
- */ 
+ */
 DOMRenderer.prototype.setHeight = function setHeight(height) {
     this._assertTargetLoaded();
 
@@ -7823,7 +8047,7 @@ DOMRenderer.prototype.removeClass = function removeClass(domClass) {
  */
 DOMRenderer.prototype._stringifyMatrix = function _stringifyMatrix(m) {
     var r = 'matrix3d(';
-    
+
     r += (m[0] < 0.000001 && m[0] > -0.000001) ? '0,' : m[0] + ',';
     r += (m[1] < 0.000001 && m[1] > -0.000001) ? '0,' : m[1] + ',';
     r += (m[2] < 0.000001 && m[2] > -0.000001) ? '0,' : m[2] + ',';
@@ -7839,14 +8063,79 @@ DOMRenderer.prototype._stringifyMatrix = function _stringifyMatrix(m) {
     r += (m[12] < 0.000001 && m[12] > -0.000001) ? '0,' : m[12] + ',';
     r += (m[13] < 0.000001 && m[13] > -0.000001) ? '0,' : m[13] + ',';
     r += (m[14] < 0.000001 && m[14] > -0.000001) ? '0,' : m[14] + ',';
-    
+
     r += m[15] + ')';
     return r;
 };
 
+/**
+ * Registers a function to be executed when a new element is being inserted at
+ * the specified path.
+ *
+ * @method
+ *
+ * @param  {String}   path      Path at which to listen for element insertion.
+ * @param  {Function} callback  Function to be executed when an insertion
+ *                              occurs.
+ * @return {DOMRenderer}        this
+ */
+DOMRenderer.prototype.onInsertEl = function onInsertEl(path, callback) {
+    this._insertElCallbackStore.on(path, callback);
+    return this;
+};
+
+/**
+ * Deregisters a listener function to be no longer executed on future element
+ * insertions at the specified path.
+ *
+ * @method
+ *
+ * @param  {String}   path      Path at which the listener function has been
+ *                              registered.
+ * @param  {Function} callback  Callback function to be deregistered.
+ * @return {DOMRenderer}        this
+ */
+DOMRenderer.prototype.offInsertEl = function offInsertEl(path, callback) {
+    this._insertElCallbackStore.off(path, callback);
+    return this;
+};
+
+/**
+ * Registers an event handler to be triggered as soon as an element at the
+ * specified path is being removed.
+ *
+ * @method
+ *
+ * @param  {String}   path      Path at which to listen for the removal of an
+ *                              element.
+ * @param  {Function} callback  Function to be executed when an element is
+ *                              being removed at the specified path.
+ * @return {DOMRenderer}        this
+ */
+DOMRenderer.prototype.onRemoveEl = function onRemoveEl(path, callback) {
+    this._removeElCallbackStore.on(path, callback);
+    return this;
+};
+
+/**
+ * Deregisters a listener function to be no longer executed when an element is
+ * being removed from the specified path.
+ *
+ * @method
+ *
+ * @param  {String}   path      Path at which the listener function has been
+ *                              registered.
+ * @param  {Function} callback  Callback function to be deregistered.
+ * @return {DOMRenderer}        this
+ */
+DOMRenderer.prototype.offRemoveEl = function offRemoveEl(path, callback) {
+    this._removeElCallbackStore.off(path, callback);
+    return this;
+};
+
 module.exports = DOMRenderer;
 
-},{"../core/Path":13,"../utilities/vendorPrefix":48,"./ElementCache":22,"./Math":23,"./events/EventMap":27}],22:[function(require,module,exports){
+},{"../core/Path":13,"../utilities/CallbackStore":45,"../utilities/vendorPrefix":49,"./ElementCache":22,"./Math":23,"./events/EventMap":27}],22:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -8411,6 +8700,7 @@ var EventMap = {
     mouseout                       : [MouseEvent, true],
     mouseover                      : [MouseEvent, true],
     mouseup                        : [MouseEvent, true],
+    contextMenu                    : [MouseEvent, true],
     resize                         : [UIEvent, false],
 
     // might bubble
@@ -10359,8 +10649,13 @@ Compositor.prototype.receiveCommands = function receiveCommands(commands) {
  */
 Compositor.prototype.giveSizeFor = function giveSizeFor(iterator, commands) {
     var selector = commands[iterator];
-    var size = this.getOrSetContext(selector).getRootSize();
-    this.sendResize(selector, size);
+    var context = this.getContext(selector);
+    if (context) {
+        var size = context.getRootSize();
+        this.sendResize(selector, size);
+    } else {
+        this.getOrSetContext(selector);
+    }
 };
 
 /**
@@ -10452,7 +10747,7 @@ function Context(selector, compositor) {
     this._webGLRenderer = null;
     this._domRenderer = new DOMRenderer(this._domRendererRootEl, selector, compositor);
     this._canvasEl = null;
-    
+
     // State holders
 
     this._renderState = {
@@ -10526,20 +10821,13 @@ Context.prototype.draw = function draw() {
 Context.prototype._initDOMRenderer = function _initDOMRenderer() {
     this._domRendererRootEl = document.createElement('div');
     this._rootEl.appendChild(this._domRendererRootEl);
-    this._domRendererRootEl.style.display = 'none';
+    this._domRendererRootEl.style.visibility = 'hidden';
 
     this._domRenderer = new DOMRenderer(
         this._domRendererRootEl,
         this._selector,
         this._compositor
     );
-};
-
-Context.prototype.getRootSize = function getRootSize() {
-    return [
-        this._rootEl.offsetWidth,
-        this._rootEl.offsetHeight
-    ];
 };
 
 Context.prototype.initCommandCallbacks = function initCommandCallbacks () {
@@ -10553,6 +10841,7 @@ Context.prototype.initCommandCallbacks = function initCommandCallbacks () {
     this._commandCallbacks[Commands.ADD_CLASS] = addClass;
     this._commandCallbacks[Commands.REMOVE_CLASS] = removeClass;
     this._commandCallbacks[Commands.SUBSCRIBE] = subscribe;
+    this._commandCallbacks[Commands.UNSUBSCRIBE] = unsubscribe;
     this._commandCallbacks[Commands.GL_SET_DRAW_OPTIONS] = glSetDrawOptions;
     this._commandCallbacks[Commands.GL_AMBIENT_LIGHT] = glAmbientLight;
     this._commandCallbacks[Commands.GL_LIGHT_POSITION] = glLightPosition;
@@ -10621,7 +10910,7 @@ Context.prototype.getRootSize = function getRootSize() {
  */
 Context.prototype.checkInit = function checkInit () {
     if (this._initDOM) {
-        this._domRendererRootEl.style.display = 'block';
+        this._domRendererRootEl.style.visibility = 'visible';
         this._initDOM = false;
     }
 };
@@ -10645,11 +10934,10 @@ Context.prototype.receive = function receive(path, commands, iterator) {
     var command = commands[++localIterator];
 
     this._domRenderer.loadPath(path);
-    this._domRenderer.findTarget();
 
     while (command != null) {
         if (command === Commands.WITH || command === Commands.TIME) return localIterator - 1;
-        else localIterator = this._commandCallbacks[command](this, path, commands, localIterator) + 1; 
+        else localIterator = this._commandCallbacks[command](this, path, commands, localIterator) + 1;
         command = commands[localIterator];
     }
 
@@ -10727,7 +11015,7 @@ function changeTransform (context, path, commands, iterator) {
     temp[15] = commands[++iterator];
 
     context._domRenderer.setMatrix(temp);
-    
+
     if (context._webGLRenderer)
         context._webGLRenderer.setCutoutUniform(path, 'u_transform', temp);
 
@@ -10744,7 +11032,7 @@ function changeSize (context, path, commands, iterator) {
         context._meshSize[1] = height;
         context._webGLRenderer.setCutoutUniform(path, 'u_size', context._meshSize);
     }
-    
+
     return iterator;
 }
 
@@ -10759,7 +11047,7 @@ function changeContent (context, path, commands, iterator) {
     context._domRenderer.setContent(commands[++iterator]);
     return iterator;
 }
-  
+
 function changeAttribute (context, path, commands, iterator) {
     if (context._webGLRenderer) context._webGLRenderer.getOrSetCutout(path);
     context._domRenderer.setAttribute(commands[++iterator], commands[++iterator]);
@@ -10781,6 +11069,12 @@ function removeClass (context, path, commands, iterator) {
 function subscribe (context, path, commands, iterator) {
     if (context._webGLRenderer) context._webGLRenderer.getOrSetCutout(path);
     context._domRenderer.subscribe(commands[++iterator]);
+    return iterator;
+}
+
+function unsubscribe (context, path, commands, iterator) {
+    if (context._webGLRenderer) context._webGLRenderer.getOrSetCutout(path);
+    context._domRenderer.unsubscribe(commands[++iterator]);
     return iterator;
 }
 
@@ -10857,7 +11151,6 @@ function glUniforms (context, path, commands, iterator) {
 function glBufferData (context, path, commands, iterator) {
     if (!context._webGLRenderer) context._initWebGLRenderer();
     context._webGLRenderer.bufferData(
-        path,
         commands[++iterator],
         commands[++iterator],
         commands[++iterator],
@@ -10926,7 +11219,7 @@ function changeViewTransform (context, path, commands, iterator) {
 
 module.exports = Context;
 
-},{"../components/Camera":1,"../core/Commands":8,"../dom-renderers/DOMRenderer":21,"../webgl-renderers/WebGLRenderer":55}],41:[function(require,module,exports){
+},{"../components/Camera":1,"../core/Commands":8,"../dom-renderers/DOMRenderer":21,"../webgl-renderers/WebGLRenderer":56}],41:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -11989,6 +12282,65 @@ CallbackStore.prototype.trigger = function trigger (key, payload) {
 module.exports = CallbackStore;
 
 },{}],46:[function(require,module,exports){
+'use strict';
+
+function Registry () {
+    this._keyToValue = {};
+    this._values = [];
+    this._keys = [];
+    this._keyToIndex = {};
+    this._freedIndices = [];
+}
+
+Registry.prototype.register = function register (key, value) {
+    var index = this._keyToIndex[key];
+    if (index == null) {
+        index = this._freedIndices.pop();
+        if (index === undefined) index = this._values.length;
+
+        this._values[index] = value;
+        this._keys[index] = key;
+
+        this._keyToIndex[key] = index;
+        this._keyToValue[key] = value;
+    }
+    else {
+        this._keyToValue[key] = value;
+        this._values[index] = value;
+    }
+};
+
+Registry.prototype.unregister = function unregister (key) {
+    var index = this._keyToIndex[key];
+
+    if (index != null) {
+        this._freedIndices.push(index);
+        this._keyToValue[key] = null;
+        this._keyToIndex[key] = null;
+        this._values[index] = null;
+        this._keys[index] = null;
+    }
+};
+
+Registry.prototype.get = function get (key) {
+    return this._keyToValue[key];
+};
+
+Registry.prototype.getValues = function getValues () {
+    return this._values;
+};
+
+Registry.prototype.getKeys = function getKeys () {
+    return this._keys;
+};
+
+Registry.prototype.getKeyToValue = function getKeyToValue () {
+    return this._keyToValue;
+};
+
+module.exports = Registry;
+
+},{}],47:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -12052,7 +12404,7 @@ var clone = function clone(b) {
 
 module.exports = clone;
 
-},{}],47:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 'use strict';
 
 /**
@@ -12109,7 +12461,7 @@ module.exports = function keyValuesToArrays(obj) {
     };
 };
 
-},{}],48:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -12169,7 +12521,7 @@ function vendorPrefix(property) {
 
 module.exports = vendorPrefix;
 
-},{}],49:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -12241,7 +12593,7 @@ Buffer.prototype.subData = function subData() {
 
 module.exports = Buffer;
 
-},{}],50:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -12388,7 +12740,7 @@ BufferRegistry.prototype.allocate = function allocate(geometryId, name, value, s
 
 module.exports = BufferRegistry;
 
-},{"./Buffer":49}],51:[function(require,module,exports){
+},{"./Buffer":50}],52:[function(require,module,exports){
 'use strict';
 
 /**
@@ -12424,7 +12776,7 @@ module.exports = BufferRegistry;
  *
  * @returns {Function} Augmented function
  */
-module.exports = function Debug() {
+function Debug() {
     return _augmentFunction(
         this.gl.compileShader,
         function(shader) {
@@ -12435,7 +12787,7 @@ module.exports = function Debug() {
             }
         }
     );
-};
+}
 
 // Takes a function, keeps the reference and replaces it by a closure that
 // executes the original function and the provided callback.
@@ -12483,7 +12835,9 @@ function _processErrors(errors, source) {
     }
 }
 
-},{}],52:[function(require,module,exports){
+module.exports = Debug;
+
+},{}],53:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -12604,12 +12958,10 @@ var varyings = keyValueToArrays({
  */
 function Program(gl, options) {
     this.gl = gl;
-    this.textureSlots = 1;
     this.options = options || {};
 
     this.registeredMaterials = {};
-    this.flaggedUniforms = [];
-    this.cachedUniforms  = {};
+    this.cachedUniforms = {};
     this.uniformTypes = [];
 
     this.definitionVec4 = [];
@@ -12620,6 +12972,10 @@ function Program(gl, options) {
     this.applicationFloat = [];
     this.applicationVert = [];
     this.definitionVert = [];
+
+    if (this.options.debug) {
+        this.gl.compileShader = Debug.call(this);
+    }
 
     this.resetProgram();
 }
@@ -12730,7 +13086,6 @@ Program.prototype.resetProgram = function resetProgram() {
     this.uniformNames = clone(uniforms.keys);
     this.uniformValues = clone(uniforms.values);
 
-    this.flaggedUniforms = [];
     this.cachedUniforms = {};
 
     fragmentHeader.push('uniform sampler2D u_textures[7];\n');
@@ -12885,12 +13240,10 @@ Program.prototype.setUniforms = function (uniformNames, uniformValue) {
 
         // Check if the value is already set for the
         // given uniform.
-
         if (this.uniformIsCached(name, value)) continue;
 
         // Determine the correct function and pass the uniform
         // value to WebGL.
-
         if (!this.uniformTypes[name]) {
             this.uniformTypes[name] = this.getUniformTypeFromValue(value);
         }
@@ -12898,11 +13251,11 @@ Program.prototype.setUniforms = function (uniformNames, uniformValue) {
         // Call uniform setter function on WebGL context with correct value
 
         switch (this.uniformTypes[name]) {
-            case 'uniform4fv':  gl.uniform4fv(location, value); break;
-            case 'uniform3fv':  gl.uniform3fv(location, value); break;
-            case 'uniform2fv':  gl.uniform2fv(location, value); break;
-            case 'uniform1fv':  gl.uniform1fv(location, value); break;
-            case 'uniform1f' :  gl.uniform1f(location, value); break;
+            case 'uniform4fv': gl.uniform4fv(location, value); break;
+            case 'uniform3fv': gl.uniform3fv(location, value); break;
+            case 'uniform2fv': gl.uniform2fv(location, value); break;
+            case 'uniform1fv': gl.uniform1fv(location, value); break;
+            case 'uniform1f' : gl.uniform1f(location, value); break;
             case 'uniformMatrix3fv': gl.uniformMatrix3fv(location, false, value); break;
             case 'uniformMatrix4fv': gl.uniformMatrix4fv(location, false, value); break;
         }
@@ -12953,10 +13306,6 @@ Program.prototype.getUniformTypeFromValue = function getUniformTypeFromValue(val
 Program.prototype.compileShader = function compileShader(shader, source) {
     var i = 1;
 
-    if (this.options.debug) {
-        this.gl.compileShader = Debug.call(this);
-    }
-
     this.gl.shaderSource(shader, source);
     this.gl.compileShader(shader);
     if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
@@ -12971,7 +13320,7 @@ Program.prototype.compileShader = function compileShader(shader, source) {
 
 module.exports = Program;
 
-},{"../utilities/clone":46,"../utilities/keyValueToArrays":47,"../webgl-shaders":59,"./Debug":51}],53:[function(require,module,exports){
+},{"../utilities/clone":47,"../utilities/keyValueToArrays":48,"../webgl-shaders":60,"./Debug":52}],54:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -13112,7 +13461,7 @@ Texture.prototype.readBack = function readBack(x, y, width, height) {
 
 module.exports = Texture;
 
-},{}],54:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -13324,7 +13673,7 @@ TextureManager.prototype.bindTexture = function bindTexture(id) {
 
 module.exports = TextureManager;
 
-},{"./Texture":53,"./createCheckerboard":57}],55:[function(require,module,exports){
+},{"./Texture":54,"./createCheckerboard":58}],56:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -13357,6 +13706,7 @@ var sorter = require('./radixSort');
 var keyValueToArrays = require('../utilities/keyValueToArrays');
 var TextureManager = require('./TextureManager');
 var compileMaterial = require('./compileMaterial');
+var Registry = require('../utilities/Registry');
 
 var identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
@@ -13402,25 +13752,16 @@ function WebGLRenderer(canvas, compositor) {
     gl.enable(gl.CULL_FACE);
     gl.cullFace(gl.BACK);
 
-    this.meshRegistry = {};
-    this.meshRegistryKeys = [];
+    this.meshRegistry = new Registry();
+    this.cutoutRegistry = new Registry();
+    this.lightRegistry = new Registry();
 
-    this.cutoutRegistry = {};
-
-    this.cutoutRegistryKeys = [];
-
-    /**
-     * Lights
-     */
     this.numLights = 0;
     this.ambientLightColor = [0, 0, 0];
-    this.lightRegistry = {};
-    this.lightRegistryKeys = [];
     this.lightPositions = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     this.lightColors = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
     this.textureManager = new TextureManager(gl);
-    this.texCache = {};
     this.bufferRegistry = new BufferRegistry(gl);
     this.program = new Program(gl, { debug: true });
 
@@ -13499,6 +13840,7 @@ WebGLRenderer.prototype.getWebGLContext = function getWebGLContext(canvas) {
         console.error('Could not retrieve WebGL context. Please refer to https://www.khronos.org/webgl/ for requirements');
         return false;
     }
+
 };
 
 /**
@@ -13512,12 +13854,12 @@ WebGLRenderer.prototype.getWebGLContext = function getWebGLContext(canvas) {
  */
 WebGLRenderer.prototype.createLight = function createLight(path) {
     this.numLights++;
-    this.lightRegistryKeys.push(path);
-    this.lightRegistry[path] = {
+    var light = {
         color: [0, 0, 0],
         position: [0, 0, 0]
     };
-    return this.lightRegistry[path];
+    this.lightRegistry.register(path, light);
+    return light;
 };
 
 /**
@@ -13530,8 +13872,6 @@ WebGLRenderer.prototype.createLight = function createLight(path) {
  * @return {Object} Newly created mesh spec.
  */
 WebGLRenderer.prototype.createMesh = function createMesh(path) {
-    this.meshRegistryKeys.push(path);
-
     var uniforms = keyValueToArrays({
         u_opacity: 1,
         u_transform: identity,
@@ -13542,7 +13882,7 @@ WebGLRenderer.prototype.createMesh = function createMesh(path) {
         u_flatShading: 0,
         u_glossiness: [0, 0, 0, 0]
     });
-    this.meshRegistry[path] = {
+    var mesh = {
         depth: null,
         uniformKeys: uniforms.keys,
         uniformValues: uniforms.values,
@@ -13552,7 +13892,9 @@ WebGLRenderer.prototype.createMesh = function createMesh(path) {
         textures: [],
         visible: true
     };
-    return this.meshRegistry[path];
+
+    this.meshRegistry.register(path, mesh);
+    return mesh;
 };
 
 /**
@@ -13582,10 +13924,9 @@ WebGLRenderer.prototype.setCutoutState = function setCutoutState(path, usesCutou
  * @return {Object} Newly created cutout spec.
  */
 WebGLRenderer.prototype.getOrSetCutout = function getOrSetCutout(path) {
-    if (this.cutoutRegistry[path]) {
-        return this.cutoutRegistry[path];
-    }
-    else {
+    var cutout = this.cutoutRegistry.get(path);
+
+    if (!cutout) {
         var uniforms = keyValueToArrays({
             u_opacity: 0,
             u_transform: identity.slice(),
@@ -13594,9 +13935,7 @@ WebGLRenderer.prototype.getOrSetCutout = function getOrSetCutout(path) {
             u_baseColor: [0, 0, 0, 1]
         });
 
-        this.cutoutRegistryKeys.push(path);
-
-        this.cutoutRegistry[path] = {
+        cutout = {
             uniformKeys: uniforms.keys,
             uniformValues: uniforms.values,
             geometry: this.cutoutGeometry.spec.id,
@@ -13604,8 +13943,10 @@ WebGLRenderer.prototype.getOrSetCutout = function getOrSetCutout(path) {
             visible: true
         };
 
-        return this.cutoutRegistry[path];
+        this.cutoutRegistry.register(path, cutout);
     }
+
+    return cutout;
 };
 
 /**
@@ -13619,7 +13960,7 @@ WebGLRenderer.prototype.getOrSetCutout = function getOrSetCutout(path) {
  * @return {undefined} undefined
  */
 WebGLRenderer.prototype.setMeshVisibility = function setMeshVisibility(path, visibility) {
-    var mesh = this.meshRegistry[path] || this.createMesh(path);
+    var mesh = this.meshRegistry.get(path) || this.createMesh(path);
 
     mesh.visible = visibility;
 };
@@ -13633,9 +13974,7 @@ WebGLRenderer.prototype.setMeshVisibility = function setMeshVisibility(path, vis
  * @return {undefined} undefined
  */
 WebGLRenderer.prototype.removeMesh = function removeMesh(path) {
-    var keyLocation = this.meshRegistryKeys.indexOf(path);
-    this.meshRegistryKeys.splice(keyLocation, 1);
-    this.meshRegistry[path] = null;
+    this.meshRegistry.unregister(path);
 };
 
 /**
@@ -13670,10 +14009,10 @@ WebGLRenderer.prototype.setCutoutUniform = function setCutoutUniform(path, unifo
  * @param {String} path Path used as id of target mesh
  * @param {Object} options Map of draw options for mesh
  *
- * @return {undefined} undefined
-**/
+ * @return {WebGLRenderer} this
+ */
 WebGLRenderer.prototype.setMeshOptions = function(path, options) {
-    var mesh = this.meshRegistry[path] || this.createMesh(path);
+    var mesh = this.meshRegistry.get(path) || this.createMesh(path);
 
     mesh.options = options;
     return this;
@@ -13689,8 +14028,8 @@ WebGLRenderer.prototype.setMeshOptions = function(path, options) {
  * @param {Number} g green channel
  * @param {Number} b blue channel
  *
- * @return {undefined} undefined
-**/
+ * @return {WebGLRenderer} this
+ */
 WebGLRenderer.prototype.setAmbientLightColor = function setAmbientLightColor(path, r, g, b) {
     this.ambientLightColor[0] = r;
     this.ambientLightColor[1] = g;
@@ -13708,11 +14047,10 @@ WebGLRenderer.prototype.setAmbientLightColor = function setAmbientLightColor(pat
  * @param {Number} y y position
  * @param {Number} z z position
  *
- * @return {undefined} undefined
-**/
+ * @return {WebGLRenderer} this
+ */
 WebGLRenderer.prototype.setLightPosition = function setLightPosition(path, x, y, z) {
-    var light = this.lightRegistry[path] || this.createLight(path);
-
+    var light = this.lightRegistry.get(path) || this.createLight(path);
     light.position[0] = x;
     light.position[1] = y;
     light.position[2] = z;
@@ -13729,10 +14067,10 @@ WebGLRenderer.prototype.setLightPosition = function setLightPosition(path, x, y,
  * @param {Number} g green channel
  * @param {Number} b blue channel
  *
- * @return {undefined} undefined
-**/
+ * @return {WebGLRenderer} this
+ */
 WebGLRenderer.prototype.setLightColor = function setLightColor(path, r, g, b) {
-    var light = this.lightRegistry[path] || this.createLight(path);
+    var light = this.lightRegistry.get(path) || this.createLight(path);
 
     light.color[0] = r;
     light.color[1] = g;
@@ -13749,10 +14087,10 @@ WebGLRenderer.prototype.setLightColor = function setLightColor(path, r, g, b) {
  * @param {String} name Name that the rendering input the material is bound to
  * @param {Object} material Material spec
  *
- * @return {undefined} undefined
-**/
+ * @return {WebGLRenderer} this
+ */
 WebGLRenderer.prototype.handleMaterialInput = function handleMaterialInput(path, name, material) {
-    var mesh = this.meshRegistry[path] || this.createMesh(path);
+    var mesh = this.meshRegistry.get(path) || this.createMesh(path);
     material = compileMaterial(material, mesh.textures.length);
 
     // Set uniforms to enable texture!
@@ -13786,9 +14124,9 @@ WebGLRenderer.prototype.handleMaterialInput = function handleMaterialInput(path,
  * @param {Boolean} dynamic Whether geometry is dynamic
  *
  * @return {undefined} undefined
-**/
+ */
 WebGLRenderer.prototype.setGeometry = function setGeometry(path, geometry, drawType, dynamic) {
-    var mesh = this.meshRegistry[path] || this.createMesh(path);
+    var mesh = this.meshRegistry.get(path) || this.createMesh(path);
 
     mesh.geometry = geometry;
     mesh.drawType = drawType;
@@ -13807,9 +14145,9 @@ WebGLRenderer.prototype.setGeometry = function setGeometry(path, geometry, drawT
  * @param {Array} uniformValue Value of uniform data
  *
  * @return {undefined} undefined
-**/
+ */
 WebGLRenderer.prototype.setMeshUniform = function setMeshUniform(path, uniformName, uniformValue) {
-    var mesh = this.meshRegistry[path] || this.createMesh(path);
+    var mesh = this.meshRegistry.get(path) || this.createMesh(path);
 
     var index = mesh.uniformKeys.indexOf(uniformName);
 
@@ -13823,12 +14161,10 @@ WebGLRenderer.prototype.setMeshUniform = function setMeshUniform(path, uniformNa
 };
 
 /**
- * Triggers the 'draw' phase of the WebGLRenderer. Iterates through registries
- * to set uniforms, set attributes and issue draw commands for renderables.
+ * Allocates a new buffer using the internal BufferRegistry.
  *
  * @method
  *
- * @param {String} path Path used as id of mesh in mesh registry
  * @param {Number} geometryId Id of geometry in geometry registry
  * @param {String} bufferName Attribute location name
  * @param {Array} bufferValue Vertex data
@@ -13837,10 +14173,8 @@ WebGLRenderer.prototype.setMeshUniform = function setMeshUniform(path, uniformNa
  *
  * @return {undefined} undefined
  */
-WebGLRenderer.prototype.bufferData = function bufferData(path, geometryId, bufferName, bufferValue, bufferSpacing, isDynamic) {
+WebGLRenderer.prototype.bufferData = function bufferData(geometryId, bufferName, bufferValue, bufferSpacing, isDynamic) {
     this.bufferRegistry.allocate(geometryId, bufferName, bufferValue, bufferSpacing, isDynamic);
-
-    return this;
 };
 
 /**
@@ -13859,7 +14193,7 @@ WebGLRenderer.prototype.draw = function draw(renderState) {
     this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
     this.textureManager.update(time);
 
-    this.meshRegistryKeys = sorter(this.meshRegistryKeys, this.meshRegistry);
+    this.meshRegistryKeys = sorter(this.meshRegistry.getKeys(), this.meshRegistry.getKeyToValue());
 
     this.setGlobalUniforms(renderState);
     this.drawCutouts();
@@ -13880,8 +14214,13 @@ WebGLRenderer.prototype.drawMeshes = function drawMeshes() {
     var buffers;
     var mesh;
 
-    for(var i = 0; i < this.meshRegistryKeys.length; i++) {
-        mesh = this.meshRegistry[this.meshRegistryKeys[i]];
+    var meshes = this.meshRegistry.getValues();
+
+    for(var i = 0; i < meshes.length; i++) {
+        mesh = meshes[i];
+
+        if (!mesh) continue;
+
         buffers = this.bufferRegistry.registry[mesh.geometry];
 
         if (!mesh.visible) continue;
@@ -13920,16 +14259,18 @@ WebGLRenderer.prototype.drawMeshes = function drawMeshes() {
 WebGLRenderer.prototype.drawCutouts = function drawCutouts() {
     var cutout;
     var buffers;
-    var len = this.cutoutRegistryKeys.length;
-
-    if (!len) return;
+    var cutouts = this.cutoutRegistry.getValues();
+    var len = cutouts.length;
 
     this.gl.disable(this.gl.CULL_FACE);
     this.gl.enable(this.gl.BLEND);
     this.gl.depthMask(true);
 
     for (var i = 0; i < len; i++) {
-        cutout = this.cutoutRegistry[this.cutoutRegistryKeys[i]];
+        cutout = cutouts[i];
+
+        if (!cutout) continue;
+
         buffers = this.bufferRegistry.registry[cutout.geometry];
 
         if (!cutout.visible) continue;
@@ -13953,9 +14294,14 @@ WebGLRenderer.prototype.drawCutouts = function drawCutouts() {
 WebGLRenderer.prototype.setGlobalUniforms = function setGlobalUniforms(renderState) {
     var light;
     var stride;
+    var lights = this.lightRegistry.getValues();
+    var len = lights.length;
 
-    for (var i = 0, len = this.lightRegistryKeys.length; i < len; i++) {
-        light = this.lightRegistry[this.lightRegistryKeys[i]];
+    for (var i = 0; i < len; i++) {
+        light = lights[i];
+
+        if (!light) continue;
+
         stride = i * 4;
 
         // Build the light positions' 4x4 matrix
@@ -14153,13 +14499,16 @@ WebGLRenderer.prototype.handleOptions = function handleOptions(options, mesh) {
 
     if (options.blending) gl.enable(gl.BLEND);
 
-    if (options.side === 'double') {
-        this.gl.cullFace(this.gl.FRONT);
-        this.drawBuffers(this.bufferRegistry.registry[mesh.geometry], mesh.drawType, mesh.geometry);
-        this.gl.cullFace(this.gl.BACK);
+    switch (options.side) {
+        case 'double':
+            this.gl.cullFace(this.gl.FRONT);
+            this.drawBuffers(this.bufferRegistry.registry[mesh.geometry], mesh.drawType, mesh.geometry);
+            this.gl.cullFace(this.gl.BACK);
+            break;
+        case 'back':
+            gl.cullFace(gl.FRONT);
+            break;
     }
-
-    if (options.side === 'back') gl.cullFace(gl.FRONT);
 };
 
 /**
@@ -14180,7 +14529,7 @@ WebGLRenderer.prototype.resetOptions = function resetOptions(options) {
 
 module.exports = WebGLRenderer;
 
-},{"../utilities/keyValueToArrays":47,"./BufferRegistry":50,"./Program":52,"./TextureManager":54,"./compileMaterial":56,"./radixSort":58}],56:[function(require,module,exports){
+},{"../utilities/Registry":46,"../utilities/keyValueToArrays":48,"./BufferRegistry":51,"./Program":53,"./TextureManager":55,"./compileMaterial":57,"./radixSort":59}],57:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -14218,7 +14567,6 @@ var types = {
  * the vertex or fragment shader.
  *
  * @method
- * @protected
  *
  * @param {Object} material Material to be compiled.
  * @param {Number} textureSlot Next available texture slot for Mesh.
@@ -14233,7 +14581,7 @@ function compileMaterial(material, textureSlot) {
     var defines = [];
     var textures = [];
 
-    _traverse(material, function (node, depth) {
+    material.traverse(function (node, depth) {
         if (! node.chunk) return;
 
         var type = types[_getOutputLength(node)];
@@ -14258,20 +14606,6 @@ function compileMaterial(material, textureSlot) {
         attributes: attributes,
         textures: textures
     };
-}
-
-// Recursively iterates over a material's inputs, invoking a given callback
-// with the current material
-function _traverse(material, callback) {
-	var inputs = material.inputs;
-    var len = inputs && inputs.length;
-    var idx = -1;
-
-    while (++idx < len) _traverse(inputs[idx], callback);
-
-    callback(material);
-
-    return material;
 }
 
 // Helper function used to infer length of the output
@@ -14328,7 +14662,7 @@ function _arrayToVec(array) {
 
 module.exports = compileMaterial;
 
-},{}],57:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -14355,8 +14689,15 @@ module.exports = compileMaterial;
 
 'use strict';
 
-// Generates a checkerboard pattern to be used as a placeholder texture while an
-// image loads over the network.
+/**
+ * Generates a checkerboard pattern to be used as a placeholder texture while
+ * an image loads over the network.
+ *
+ * @method  createCheckerBoard
+ *
+ * @return {HTMLCanvasElement} The `canvas` element that has been used in order
+ *                             to generate the pattern.
+ */
 function createCheckerBoard() {
     var context = document.createElement('canvas').getContext('2d');
     context.canvas.width = context.canvas.height = 128;
@@ -14372,7 +14713,7 @@ function createCheckerBoard() {
 
 module.exports = createCheckerBoard;
 
-},{}],58:[function(require,module,exports){
+},{}],59:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -14444,7 +14785,13 @@ function intToFloat(k) {
     return floatView[0];
 }
 
-//sorts a list of mesh IDs according to their z-depth
+/**
+ * Sorts an array of mesh IDs according to their z-depth.
+ *
+ * @param  {Array} list         An array of meshes.
+ * @param  {Object} registry    A registry mapping the path names to meshes.
+ * @return {Array}              An array of the meshes sorted by z-depth.
+ */
 function radixSort(list, registry) {
     var pass = 0;
     var out = [];
@@ -14503,7 +14850,7 @@ function radixSort(list, registry) {
 
 module.exports = radixSort;
 
-},{}],59:[function(require,module,exports){
+},{}],60:[function(require,module,exports){
 /**
  * The MIT License (MIT)
  *
@@ -14539,7 +14886,7 @@ var shaders = {
 
 module.exports = shaders;
 
-},{}],60:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 'use strict';
 
 var FamousEngine = require('famous/core/FamousEngine');
@@ -14555,7 +14902,7 @@ function App(scene) {
 
     // Dimensions
     LayoutManager.calcAppDimensions();
-    console.log('LayoutManager width ' + LayoutManager.getAppDimensionWidth());
+    console.log("LayoutManager width " + LayoutManager.getAppDimensionWidth());
 
     var APP_WIDTH = window.innerWidth;
     var APP_HEIGHT = window.innerHeight;
@@ -14569,22 +14916,22 @@ function App(scene) {
 
     appNode.onReceive = function (e, p) {
 
-        if (e === 'del') {
+        if (e === "del") {
 
             console.log('Received ' + e + ' event!' + ' with ' + p.seqno);
 
             appNode.deletePostit(p.seqno);
-        } else if (e == 'rearrange') {
+        } else if (e == "rearrange") {
             appNode.reArrange();
-        } else if (e == 'logout') {
+        } else if (e == "logout") {
             appNode.logoff();
         }
     };
 
     setTimeout(function () {
 
-        console.log('Fired');
-        scene.emit('eventoo', { data: 'payload' });
+        console.log("Fired");
+        scene.emit("eventoo", { data: "payload" });
     }, 5000);
 
     //headerNode.setSizeMode('relative','relative','relative')
@@ -14600,7 +14947,7 @@ function App(scene) {
             console.log(sizew, sizeh);
 
             LayoutManager.calcAppDimensions();
-            console.log('LayoutManager width ' + LayoutManager.getAppDimensionWidth());
+            console.log("LayoutManager width " + LayoutManager.getAppDimensionWidth());
 
             APP_WIDTH = window.innerWidth;
             APP_HEIGHT = window.innerHeight;
@@ -14613,7 +14960,7 @@ function App(scene) {
     });
 
     var expanderDIV = new DOMElement(headerNode, {
-        content: 'Famous Collaboration',
+        content: "Famous Collaboration",
         properties: {
             'background-color': 'rgb(62, 67, 68)',
             'color': '#AAA7A7',
@@ -14646,7 +14993,7 @@ function App(scene) {
 
 module.exports = App;
 
-},{"./appNode.js":61,"./layoutManager.js":62,"famous/components/Position":3,"famous/components/Size":5,"famous/core/FamousEngine":11,"famous/dom-renderables/DOMElement":20}],61:[function(require,module,exports){
+},{"./appNode.js":62,"./layoutManager.js":63,"famous/components/Position":3,"famous/components/Size":5,"famous/core/FamousEngine":11,"famous/dom-renderables/DOMElement":20}],62:[function(require,module,exports){
 'use strict';
 
 var Node = require('famous/core/Node');
@@ -14728,7 +15075,7 @@ function AppNode(scene) {
 
     if (that.context.dragStatus == 0) {
 
-      if (e.status == 'move') {
+      if (e.status == "move") {
 
         var tempY = that.postitContainerPanelPos.getY() + e.centerDelta.y;
         that.postitContainerPanelPos.set(0, tempY);
@@ -14759,7 +15106,7 @@ AppNode.prototype.initEvents = function initEvents() {
 
   var that = this;
   //Initialize all intra DOM UI events
-  $('body').on('click', '#addPostit', function () {
+  $('body').on("click", '#addPostit', function () {
 
     that.postitSeq++;
 
@@ -14770,13 +15117,13 @@ AppNode.prototype.initEvents = function initEvents() {
     postitObject.creator = 'demo';
     postitObject.creationDate = taskDate.substr(0, taskDate.length - 4);
     postitObject.modificationDate = null;
-    postitObject.postitContent = '';
+    postitObject.postitContent = "";
     postitObject.postitCriticality = 1;
 
     that.addNewPostit(postitObject);
   });
 
-  $('body').on('click', '#loginPanel_Submit', function () {
+  $('body').on("click", '#loginPanel_Submit', function () {
 
     if (that.loginAndStatusPanel.doLogin()) {
 
@@ -14897,7 +15244,7 @@ AppNode.prototype.reArrange = function reArrange(postitObj) {
   //Run through all the postits in the postitEntries array
   //Rearrange them as per the current layout
   //Set the strictLayout to true
-  console.log('rearrange triggered');
+  console.log("rearrange triggered");
 
   for (var i = 0; i < this.postitEntries.length; i++) {
 
@@ -14932,7 +15279,7 @@ AppNode.prototype.onReceive = function onReceive(type, ev) {
 */
 module.exports = AppNode;
 
-},{"./layoutManager.js":62,"./loginAndStatusPanel.js":63,"./postitNode.js":64,"famous/components/GestureHandler":2,"famous/components/Position":3,"famous/components/Size":5,"famous/core/Node":12,"famous/dom-renderables/DOMElement":20}],62:[function(require,module,exports){
+},{"./layoutManager.js":63,"./loginAndStatusPanel.js":64,"./postitNode.js":65,"famous/components/GestureHandler":2,"famous/components/Position":3,"famous/components/Size":5,"famous/core/Node":12,"famous/dom-renderables/DOMElement":20}],63:[function(require,module,exports){
 "use strict";
 
 var __MAX_LAYOUT_COLUMN_ = 3;
@@ -15056,7 +15403,7 @@ LayoutManager.getPostitPosition = function getPostitPosition(pSeq) {
 
 module.exports = LayoutManager;
 
-},{}],63:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 'use strict';
 
 var Node = require('famous/core/Node');
@@ -15067,13 +15414,52 @@ var Size = require('famous/components/Size');
 var LayoutManager = require('./layoutManager.js');
 
 //Inner HTML Snippets
-var loginHTML = '<div id="loginandstatusPanel">\t        <div id="loginPanel">\t          <div class="ui form segment">\t            <div class="field required">\t              <label>Username</label>\t              <input id="loginPanel_Username" placeholder="Username" type="text">\t            </div> \t            <div class="field required">\t              <label>Password</label>\t              <div class="ui icon input"> \t                <i class="lock icon"></i>                  <input id="loginPanel_Password" placeholder="Password" type="password"/> \t              </div> \t            </div> \t            <div id="loginPanel_Submit" class="ui submit button">Submit</div>\t            <div id="loginPanel_Reset" class="ui reset button">Reset</div>\t          </div>\t        </div>\t      </div>';
+var loginHTML = '<div id="loginandstatusPanel">\
+	        <div id="loginPanel">\
+	          <div class="ui form segment">\
+	            <div class="field required">\
+	              <label>Username</label>\
+	              <input id="loginPanel_Username" placeholder="Username" type="text">\
+	            </div> \
+	            <div class="field required">\
+	              <label>Password</label>\
+	              <div class="ui icon input"> \
+	                <i class="lock icon"></i> \
+                 <input id="loginPanel_Password" placeholder="Password" type="password"/> \
+	              </div> \
+	            </div> \
+	            <div id="loginPanel_Submit" class="ui submit button">Submit</div>\
+	            <div id="loginPanel_Reset" class="ui reset button">Reset</div>\
+	          </div>\
+	        </div>\
+	      </div>';
 
-var menuHTMLPre = '<div id="menuContent" style="width:90%;height:100%;float:left;"> \t\t\t\t\t\t\t\t\t<div style="float:left;width:15%;height:100%;"> \t\t\t\t\t\t\t\t\t\t<div id="addPostit" style="width:100%;height:100%;text-align: center;cursor:pointer;background-color: rgb(115, 240, 240);"> \t\t\t\t\t\t\t\t\t\t\t<span><img src="images/add-icon.png" style="height:100%;width:100%;"/></span> \t\t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t<div style="float:left;width:15%;height:100%;"> \t\t\t\t\t\t\t\t\t\t<div id="gridPostit" style="width:100%;height:100%;text-align: center;cursor:pointer;padding:5px;"> \t\t\t\t\t\t\t\t\t\t\t<span><img src="images/grid-icon.png" style="height:100%;width:100%;"/></span> \t\t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t<div> \t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t<div style="float:left;width:50%;height:100%;text-align:center;"> \t\t\t\t\t\t\t\t\t\t<span>Postits : ';
+var menuHTMLPre = '<div id="menuContent" style="width:90%;height:100%;float:left;"> \
+									<div style="float:left;width:15%;height:100%;"> \
+										<div id="addPostit" style="width:100%;height:100%;text-align: center;cursor:pointer;background-color: rgb(115, 240, 240);"> \
+											<span><img src="images/add-icon.png" style="height:100%;width:100%;"/></span> \
+										</div> \
+									</div> \
+									<div style="float:left;width:15%;height:100%;"> \
+										<div id="gridPostit" style="width:100%;height:100%;text-align: center;cursor:pointer;padding:5px;"> \
+											<span><img src="images/grid-icon.png" style="height:100%;width:100%;"/></span> \
+										</div> \
+									</div> \
+									<div> \
+									</div> \
+									<div style="float:left;width:50%;height:100%;text-align:center;"> \
+										<span>Postits : ';
 
-var menuHTMLPost = '</span> \t\t\t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t\t\t<div id="logoutPostit" style="float:right;width:15%;height:100%;"> \t\t\t\t\t\t\t\t\t\t\t\t<span><img src="images/logout-icon.png" style="height:100%;width:100%;"/></span> \t\t\t\t\t\t\t\t\t\t\t</div> \t\t\t\t\t\t\t\t\t\t</div>';
+var menuHTMLPost = '</span> \
+											</div> \
+											<div id="logoutPostit" style="float:right;width:15%;height:100%;"> \
+												<span><img src="images/logout-icon.png" style="height:100%;width:100%;"/></span> \
+											</div> \
+										</div>';
 
-var grabberHTML = '<div id="menuGrabber" style="width:5%;height:100%;float:right;padding:2px;">  \t\t\t\t\t\t\t\t\t\t\t<span id="menuMinimize"><img src="images/mesh-icon.png" style="height:100%;width:100%;"/></span> \t\t\t\t\t\t\t\t\t</div>';
+var grabberHTML = '<div id="menuGrabber" style="width:5%;height:100%;float:right;padding:2px;">  \
+											<span id="menuMinimize"><img src="images/mesh-icon.png" style="height:100%;width:100%;"/></span> \
+									</div>';
 
 var loginUser = 'demo';
 var loginPassword = '12345';
@@ -15153,12 +15539,12 @@ function __initEvents() {
 
 		$('body').on('click', '#gridPostit', function () {
 
-				that.context.emit('rearrange');
+				that.context.emit("rearrange");
 		});
 
 		$('body').on('click', '#logoutPostit', function () {
 
-				that.context.emit('logout');
+				that.context.emit("logout");
 				that.postitCount = 0;
 
 				$('#postitBasePanel').fadeOut(1000);
@@ -15185,7 +15571,12 @@ function __initEvents() {
 
 						$('body').find('#menuGrabber').css('width', '5%');
 
-						that.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth() - 10, LayoutManager.getAppDimensionHeaderHeight() * 0.5, 0, { duration: 500 }, function () {});
+						that.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth() - 10, LayoutManager.getAppDimensionHeaderHeight() * 0.5, 0, { duration: 500 }, function () {
+
+								//that.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500});
+								//$('body').find('#menuGrabber').css('width','100%');
+
+						});
 
 						that.menuCollapsedState = false;
 				} else {
@@ -15216,10 +15607,7 @@ LoginAndStatusPanel.prototype.decrement = function decrement() {
 
 module.exports = LoginAndStatusPanel;
 
-//that.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500});
-//$('body').find('#menuGrabber').css('width','100%');
-
-},{"./layoutManager.js":62,"famous/components/Position":3,"famous/components/Size":5,"famous/core/Node":12,"famous/dom-renderables/DOMElement":20}],64:[function(require,module,exports){
+},{"./layoutManager.js":63,"famous/components/Position":3,"famous/components/Size":5,"famous/core/Node":12,"famous/dom-renderables/DOMElement":20}],65:[function(require,module,exports){
 'use strict';
 
 var Node = require('famous/core/Node');
@@ -15234,9 +15622,24 @@ var GestureHandler = require('famous/components/GestureHandler');
 var Transitionable = require('famous/transitions/Transitionable');
 
 var headerContentPre = '<div';
-var headerContentPost = '>                     <div class="title" style="float:left;width:50%;">                       <textarea readonly style="height:35px;width:100%;resize:none;background-color:rgb(240, 232, 174);border:none;overflow:hidden;" maxlength="11"></textarea>                     </div>                     <div class="icons" style="float:right;padding-right:5px;">                       <span><img class="edit" src="images/edit-icon.ico" height="20" width="20"/></span>                       <span><img class="flip" src="images/flip-icon.png" height="20" width="20"/></span>                       <span><img class="delete" src="images/trash-icon.png" height="20" width="20"/></span>                     </div>                   </div>                   ';
+var headerContentPost = '> \
+                    <div class="title" style="float:left;width:50%;"> \
+                      <textarea readonly style="height:35px;width:100%;resize:none;background-color:rgb(240, 232, 174);border:none;overflow:hidden;" maxlength="11"></textarea> \
+                    </div> \
+                    <div class="icons" style="float:right;padding-right:5px;"> \
+                      <span><img class="edit" src="images/edit-icon.ico" height="20" width="20"/></span> \
+                      <span><img class="flip" src="images/flip-icon.png" height="20" width="20"/></span> \
+                      <span><img class="delete" src="images/trash-icon.png" height="20" width="20"/></span> \
+                    </div> \
+                  </div> \
+                  ';
 
-var postitContent = '<div>                     <div class="content" style="overflow:hidden;">                       <textarea readonly style="height:200px;resize:none;background-color:rgb(246, 240, 198);border:none;"></textarea>                     </div>                   </div>                   ';
+var postitContent = '<div> \
+                    <div class="content" style="overflow:hidden;"> \
+                      <textarea readonly style="height:200px;resize:none;background-color:rgb(246, 240, 198);border:none;"></textarea> \
+                    </div> \
+                  </div> \
+                  ';
 
 function PostitNode(node, obj, options, app) {
 
@@ -15268,8 +15671,18 @@ function PostitNode(node, obj, options, app) {
     this.backNode.setSizeMode('absolute', 'absolute').setAbsoluteSize(this.postWidth, this.postHeight).setPosition(0, 0, 0).setOrigin(0.5, 0.5, 0).setRotation(0, Math.PI, 0);
 
     this.cyanDIV = new DOMElement(this.backNode, {
-        id: 'Postit-Back' + this.seqId,
-        content: '<div>                     <div>                       <span style="font-weight:bold;"> Creator : </span>                       <span> demo </span> </br>                     </div>                     </br>                     <div>                       <span style="font-weight:bold;"> Creation Date/Time : </span> </br>                       <span>' + obj.creationDate + '</span>                     </div>                   </div>',
+        id: "Postit-Back" + this.seqId,
+        content: '<div> \
+                    <div> \
+                      <span style="font-weight:bold;"> Creator : </span> \
+                      <span> demo </span> </br> \
+                    </div> \
+                    </br> \
+                    <div> \
+                      <span style="font-weight:bold;"> Creation Date/Time : </span> </br> \
+                      <span>' + obj.creationDate + '</span> \
+                    </div> \
+                  </div>',
         properties: {
             'background-color': 'rgb(189, 239, 239)',
             'padding': '5px 5px 5px 5px'
@@ -15295,7 +15708,7 @@ function PostitNode(node, obj, options, app) {
     this.el.setProperty('box-shadow', '5px 5px 7px rgba(33,33,33,.7)');
 
     this.elheader = new DOMElement(this.headerNode);
-    this.elheader.setAttribute('id', 'Postit-Header' + this.seqId);
+    this.elheader.setAttribute("id", "Postit-Header" + this.seqId);
     this.elheader.setProperty('background-color', 'rgb(240, 232, 174)');
     this.elheader.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
     this.elheader.setProperty('font-size', '160%');
@@ -15307,7 +15720,7 @@ function PostitNode(node, obj, options, app) {
     this.headerRef = null;
 
     this.elcontent = new DOMElement(this.contentNode);
-    this.elcontent.setAttribute('id', 'Postit-Content' + this.seqId);
+    this.elcontent.setAttribute("id", "Postit-Content" + this.seqId);
     this.elcontent.setProperty('background-color', 'rgb(246, 240, 198)');
     this.elcontent.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
     this.elcontent.setProperty('font-size', '140%');
@@ -15330,46 +15743,114 @@ function PostitNode(node, obj, options, app) {
 
     this.editMode = false;
 
-    var myComponent = {
-        onReceive: function onReceive(event, payload) {
-            console.log('Received ' + event + ' event!');
+    /*
+        var myComponent = {
+        onReceive: function(event, payload) {
+            console.log(
+                'Received ' + event + ' event!'
+                );
+            }
+        };
+    */
+
+    this.node.mousePressStatus = false;
+    this.node.mousePressPos = null;
+
+    this.headerNode.addUIEvent('mousedown');
+    this.headerNode.addUIEvent('mouseup');
+    this.headerNode.addUIEvent('mouseenter');
+    this.headerNode.addUIEvent('mouseleave');
+    this.headerNode.addUIEvent('mousemove');
+
+    this.headerNode.onReceive = function (event, payload) {
+
+        //console.log(
+        //    'Received ' + event + ' event!'
+        //    );
+        //console.log(payload);
+
+        if (event === 'mousedown') {
+
+            this.mousePressStatus = true;
+            this.mousePressPos = payload;
+            console.log("mousedown");
+            console.log(payload);
+        }
+
+        if (event === 'mouseup') {
+
+            this.mousePressStatus = false;
+            this.mousePressPos = null;
+            //console.log("mouseup");
+            //console.log(payload);
+        }
+
+        if (event === 'mousemove') {
+
+            var e = payload;
+            var moveDeltaPosition = [e.offsetX, e.offsetY];
+            //var moveDeltaPosition = [(e.offsetX || e.clientX - $(e.target).offset().left + window.pageXOffset ) , (e.offsetY || e.clientY - $(e.target).offset().top + window.pageYOffset )];
+
+            //console.log(payload);
+        }
+
+        if (event === 'mouseleave') {
+
+            if (this.mousePressStatus) {
+
+                console.log("left while dragging");
+
+                var tempX = that.postitPosition.getX() - payload.offsetX;
+                var tempY = that.postitPosition.getY() - payload.offsetY;
+
+                console.log("tempX : " + tempX);
+                console.log("tempY : " + tempY);
+
+                that.postitPosition.set(tempX, tempY);
+            }
         }
     };
-    this.frontNode.addComponent(myComponent);
 
     //Out of order nodes are positioned manually by user through dragging.
     //Out of order behaviour can be reset by clickign on the grid icon
     this.isOutofOrder = false;
 
     var that = this;
-
-    this.gestures = new GestureHandler(this.node);
-    this.gestures.on({
-        event: 'drag',
-        points: 2,
-        threshold: 10
-    }, function (e) {
-
-        if (e.status == 'start') {
-            that.parent.dragStatus = 1;
-        }
-
-        if (e.status == 'end') {
-            that.parent.dragStatus = 0;
-        }
-
-        if (e.status == 'move') {
-
-            if (that.parent.dragStatus) {
-
+    /*
+        this.gestures = new GestureHandler(this.frontNode);
+        this.gestures.on({
+            event: 'drag',
+            points: 2,
+            threshold: 10
+        }, function(e){
+    
+            if(e.status == "start"){
+              console.log("dragging start")
+                that.parent.dragStatus = 1;
+            }
+    
+            if(e.status == "end"){
+              console.log("dragging end")
+                that.parent.dragStatus = 0;
+            }
+    
+            if(e.status == "move"){
+    
+              if(that.parent.dragStatus){
+    
                 var tempY = that.postitPosition.getY() + e.centerDelta.y;
                 var tempX = that.postitPosition.getX() + e.centerDelta.x;
-                that.postitPosition.set(tempX, tempY, 1000);
-
+                that.postitPosition.set(tempX, tempY );
+    
                 that.isOutofOrder = true;
+    
+              }
+    
             }
-        }
-    });
+    
+        });
+    
+    */
 }
 
 // Extend the prototype
@@ -15404,16 +15885,16 @@ PostitNode.prototype.place = function place(xpos, ypos, zpos) {
 
     this.opacityTransitionable.set(1, { duration: 500 }, function () {
 
-        that.headerRef = $('#Postit-Header' + that.seqId);
-        that.contentRef = $('#Postit-Content' + that.seqId);
+        that.headerRef = $("#Postit-Header" + that.seqId);
+        that.contentRef = $("#Postit-Content" + that.seqId);
 
         $(that.headerRef).hover(function () {
-            if ($(this).find('textarea').val().length > 0) {
-                $(this).find('.icons').stop().fadeIn();
+            if ($(this).find("textarea").val().length > 0) {
+                $(this).find(".icons").stop().fadeIn();
             }
         }, function () {
-            if ($(this).find('textarea').val().length > 0) {
-                $(this).find('.icons').stop().fadeOut();
+            if ($(this).find("textarea").val().length > 0) {
+                $(this).find(".icons").stop().fadeOut();
             }
         });
 
@@ -15422,22 +15903,22 @@ PostitNode.prototype.place = function place(xpos, ypos, zpos) {
 
                 that.editMode = false;
 
-                $(that.headerRef).find('textarea').attr('readonly', 'readonly');
-                $(that.contentRef).find('textarea').attr('readonly', 'readonly');
-                $(this).css('opacity', 0.5);
+                $(that.headerRef).find("textarea").attr("readonly", "readonly");
+                $(that.contentRef).find("textarea").attr("readonly", "readonly");
+                $(this).css("opacity", 0.5);
             } else {
 
                 that.editMode = true;
 
-                $(that.headerRef).find('textarea').removeAttr('readonly');
-                $(that.contentRef).find('textarea').removeAttr('readonly');
-                $(this).css('opacity', 1);
+                $(that.headerRef).find("textarea").removeAttr("readonly");
+                $(that.contentRef).find("textarea").removeAttr("readonly");
+                $(this).css("opacity", 1);
             }
         });
 
         $(that.headerRef).find('.delete').on('click', function () {
 
-            that.parent.emit('del', { seqno: that.seqId });
+            that.parent.emit("del", { seqno: that.seqId });
         });
 
         $(that.headerRef).find('.flip').on('click', function () {
@@ -15445,7 +15926,7 @@ PostitNode.prototype.place = function place(xpos, ypos, zpos) {
             that.rotation.set(0, Math.PI, 0, { duration: 1000 });
         });
 
-        $('body').on('click', '#Postit-Back' + that.seqId, function () {
+        $('body').on('click', "#Postit-Back" + that.seqId, function () {
 
             that.rotation.set(0, 0, 0, { duration: 1000 });
         });
@@ -15480,7 +15961,7 @@ PostitNode.prototype.update = function update(postitObj) {};
 
 module.exports = PostitNode;
 
-},{"famous/components/GestureHandler":2,"famous/components/Position":3,"famous/components/Rotation":4,"famous/components/Size":5,"famous/core/Node":12,"famous/dom-renderables/DOMElement":20,"famous/transitions/Transitionable":44}],65:[function(require,module,exports){
+},{"famous/components/GestureHandler":2,"famous/components/Position":3,"famous/components/Rotation":4,"famous/components/Size":5,"famous/core/Node":12,"famous/dom-renderables/DOMElement":20,"famous/transitions/Transitionable":44}],66:[function(require,module,exports){
 'use strict';
 
 // Famous dependencies
@@ -15496,4 +15977,4 @@ var scene = FamousEngine.createScene();
 
 var app = App(scene);
 
-},{"./app/app":60,"famous/core/FamousEngine":11}]},{},[65]);
+},{"./app/app":61,"famous/core/FamousEngine":11}]},{},[66]);
