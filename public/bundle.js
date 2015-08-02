@@ -14881,7 +14881,7 @@ module.exports = radixSort;
 
 var shaders = {
     vertex: "#define GLSLIFY 1\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates transpose inverse matrix from transform\n * \n * @method random\n * @private\n *\n *\n */\n\n\nmat3 getNormalMatrix_1_0(in mat4 t) {\n   mat3 matNorm;\n   mat4 a = t;\n\n   float a00 = a[0][0], a01 = a[0][1], a02 = a[0][2], a03 = a[0][3],\n   a10 = a[1][0], a11 = a[1][1], a12 = a[1][2], a13 = a[1][3],\n   a20 = a[2][0], a21 = a[2][1], a22 = a[2][2], a23 = a[2][3],\n   a30 = a[3][0], a31 = a[3][1], a32 = a[3][2], a33 = a[3][3],\n   b00 = a00 * a11 - a01 * a10,\n   b01 = a00 * a12 - a02 * a10,\n   b02 = a00 * a13 - a03 * a10,\n   b03 = a01 * a12 - a02 * a11,\n   b04 = a01 * a13 - a03 * a11,\n   b05 = a02 * a13 - a03 * a12,\n   b06 = a20 * a31 - a21 * a30,\n   b07 = a20 * a32 - a22 * a30,\n   b08 = a20 * a33 - a23 * a30,\n   b09 = a21 * a32 - a22 * a31,\n   b10 = a21 * a33 - a23 * a31,\n   b11 = a22 * a33 - a23 * a32,\n\n   det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;\n   det = 1.0 / det;\n\n   matNorm[0][0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;\n   matNorm[0][1] = (a12 * b08 - a10 * b11 - a13 * b07) * det;\n   matNorm[0][2] = (a10 * b10 - a11 * b08 + a13 * b06) * det;\n\n   matNorm[1][0] = (a02 * b10 - a01 * b11 - a03 * b09) * det;\n   matNorm[1][1] = (a00 * b11 - a02 * b08 + a03 * b07) * det;\n   matNorm[1][2] = (a01 * b08 - a00 * b10 - a03 * b06) * det;\n\n   matNorm[2][0] = (a31 * b05 - a32 * b04 + a33 * b03) * det;\n   matNorm[2][1] = (a32 * b02 - a30 * b05 - a33 * b01) * det;\n   matNorm[2][2] = (a30 * b04 - a31 * b02 + a33 * b00) * det;\n\n   return matNorm;\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates a matrix that creates the identity when multiplied by m\n * \n * @method inverse\n * @private\n *\n *\n */\n\n\nfloat inverse_2_1(float m) {\n    return 1.0 / m;\n}\n\nmat2 inverse_2_1(mat2 m) {\n    return mat2(m[1][1],-m[0][1],\n               -m[1][0], m[0][0]) / (m[0][0]*m[1][1] - m[0][1]*m[1][0]);\n}\n\nmat3 inverse_2_1(mat3 m) {\n    float a00 = m[0][0], a01 = m[0][1], a02 = m[0][2];\n    float a10 = m[1][0], a11 = m[1][1], a12 = m[1][2];\n    float a20 = m[2][0], a21 = m[2][1], a22 = m[2][2];\n\n    float b01 =  a22 * a11 - a12 * a21;\n    float b11 = -a22 * a10 + a12 * a20;\n    float b21 =  a21 * a10 - a11 * a20;\n\n    float det = a00 * b01 + a01 * b11 + a02 * b21;\n\n    return mat3(b01, (-a22 * a01 + a02 * a21), (a12 * a01 - a02 * a11),\n                b11, (a22 * a00 - a02 * a20), (-a12 * a00 + a02 * a10),\n                b21, (-a21 * a00 + a01 * a20), (a11 * a00 - a01 * a10)) / det;\n}\n\nmat4 inverse_2_1(mat4 m) {\n    float\n        a00 = m[0][0], a01 = m[0][1], a02 = m[0][2], a03 = m[0][3],\n        a10 = m[1][0], a11 = m[1][1], a12 = m[1][2], a13 = m[1][3],\n        a20 = m[2][0], a21 = m[2][1], a22 = m[2][2], a23 = m[2][3],\n        a30 = m[3][0], a31 = m[3][1], a32 = m[3][2], a33 = m[3][3],\n\n        b00 = a00 * a11 - a01 * a10,\n        b01 = a00 * a12 - a02 * a10,\n        b02 = a00 * a13 - a03 * a10,\n        b03 = a01 * a12 - a02 * a11,\n        b04 = a01 * a13 - a03 * a11,\n        b05 = a02 * a13 - a03 * a12,\n        b06 = a20 * a31 - a21 * a30,\n        b07 = a20 * a32 - a22 * a30,\n        b08 = a20 * a33 - a23 * a30,\n        b09 = a21 * a32 - a22 * a31,\n        b10 = a21 * a33 - a23 * a31,\n        b11 = a22 * a33 - a23 * a32,\n\n        det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;\n\n    return mat4(\n        a11 * b11 - a12 * b10 + a13 * b09,\n        a02 * b10 - a01 * b11 - a03 * b09,\n        a31 * b05 - a32 * b04 + a33 * b03,\n        a22 * b04 - a21 * b05 - a23 * b03,\n        a12 * b08 - a10 * b11 - a13 * b07,\n        a00 * b11 - a02 * b08 + a03 * b07,\n        a32 * b02 - a30 * b05 - a33 * b01,\n        a20 * b05 - a22 * b02 + a23 * b01,\n        a10 * b10 - a11 * b08 + a13 * b06,\n        a01 * b08 - a00 * b10 - a03 * b06,\n        a30 * b04 - a31 * b02 + a33 * b00,\n        a21 * b02 - a20 * b04 - a23 * b00,\n        a11 * b07 - a10 * b09 - a12 * b06,\n        a00 * b09 - a01 * b07 + a02 * b06,\n        a31 * b01 - a30 * b03 - a32 * b00,\n        a20 * b03 - a21 * b01 + a22 * b00) / det;\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Reflects a matrix over its main diagonal.\n * \n * @method transpose\n * @private\n *\n *\n */\n\n\nfloat transpose_3_2(float m) {\n    return m;\n}\n\nmat2 transpose_3_2(mat2 m) {\n    return mat2(m[0][0], m[1][0],\n                m[0][1], m[1][1]);\n}\n\nmat3 transpose_3_2(mat3 m) {\n    return mat3(m[0][0], m[1][0], m[2][0],\n                m[0][1], m[1][1], m[2][1],\n                m[0][2], m[1][2], m[2][2]);\n}\n\nmat4 transpose_3_2(mat4 m) {\n    return mat4(m[0][0], m[1][0], m[2][0], m[3][0],\n                m[0][1], m[1][1], m[2][1], m[3][1],\n                m[0][2], m[1][2], m[2][2], m[3][2],\n                m[0][3], m[1][3], m[2][3], m[3][3]);\n}\n\n\n\n\n/**\n * Converts vertex from modelspace to screenspace using transform\n * information from context.\n *\n * @method applyTransform\n * @private\n *\n *\n */\n\nvec4 applyTransform(vec4 pos) {\n    //TODO: move this multiplication to application code. \n\n    /**\n     * Currently multiplied in the vertex shader to avoid consuming the complexity of holding an additional\n     * transform as state on the mesh object in WebGLRenderer. Multiplies the object's transformation from object space\n     * to world space with its transformation from world space to eye space.\n     */\n    mat4 MVMatrix = u_view * u_transform;\n\n    //TODO: move the origin, sizeScale and y axis inversion to application code in order to amortize redundant per-vertex calculations.\n\n    /**\n     * The transform uniform should be changed to the result of the transformation chain:\n     *\n     * view * modelTransform * invertYAxis * sizeScale * origin\n     *\n     * which could be simplified to:\n     *\n     * view * modelTransform * convertToDOMSpace\n     *\n     * where convertToDOMSpace represents the transform matrix:\n     *\n     *                           size.x 0       0       size.x \n     *                           0      -size.y 0       size.y\n     *                           0      0       1       0\n     *                           0      0       0       1\n     *\n     */\n\n    /**\n     * Assuming a unit volume, moves the object space origin [0, 0, 0] to the \"top left\" [1, -1, 0], the DOM space origin.\n     * Later in the transformation chain, the projection transform negates the rigidbody translation.\n     * Equivalent to (but much faster than) multiplying a translation matrix \"origin\"\n     *\n     *                           1 0 0 1 \n     *                           0 1 0 -1\n     *                           0 0 1 0\n     *                           0 0 0 1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.x += 1.0;\n    pos.y -= 1.0;\n\n    /**\n     * Assuming a unit volume, scales an object to the amount of pixels in the size uniform vector's specified dimensions.\n     * Later in the transformation chain, the projection transform transforms the point into clip space by scaling\n     * by the inverse of the canvas' resolution.\n     * Equivalent to (but much faster than) multiplying a scale matrix \"sizeScale\"\n     *\n     *                           size.x 0      0      0 \n     *                           0      size.y 0      0\n     *                           0      0      size.z 0\n     *                           0      0      0      1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.xyz *= u_size * 0.5;\n\n    /**\n     * Inverts the object space's y axis in order to match DOM space conventions. \n     * Later in the transformation chain, the projection transform reinverts the y axis to convert to clip space.\n     * Equivalent to (but much faster than) multiplying a scale matrix \"invertYAxis\"\n     *\n     *                           1 0 0 0 \n     *                           0 -1 0 0\n     *                           0 0 1 0\n     *                           0 0 0 1\n     *\n     * in the transform chain: projection * view * modelTransform * invertYAxis * sizeScale * origin * positionVector.\n     */\n    pos.y *= -1.0;\n\n    /**\n     * Exporting the vertex's position as a varying, in DOM space, to be used for lighting calculations. This has to be in DOM space\n     * since light position and direction is derived from the scene graph, calculated in DOM space.\n     */\n\n    v_position = (MVMatrix * pos).xyz;\n\n    /**\n    * Exporting the eye vector (a vector from the center of the screen) as a varying, to be used for lighting calculations.\n    * In clip space deriving the eye vector is a matter of simply taking the inverse of the position, as the position is a vector\n    * from the center of the screen. However, since our points are represented in DOM space,\n    * the position is a vector from the top left corner of the screen, so some additional math is needed (specifically, subtracting\n    * the position from the center of the screen, i.e. half the resolution of the canvas).\n    */\n\n    v_eyeVector = (u_resolution * 0.5) - v_position;\n\n    /**\n     * Transforming the position (currently represented in dom space) into view space (with our dom space view transform)\n     * and then projecting the point into raster both by applying a perspective transformation and converting to clip space\n     * (the perspective matrix is a combination of both transformations, therefore it's probably more apt to refer to it as a\n     * projection transform).\n     */\n\n    pos = u_perspective * MVMatrix * pos;\n\n    return pos;\n}\n\n/**\n * Placeholder for positionOffset chunks to be templated in.\n * Used for mesh deformation.\n *\n * @method calculateOffset\n * @private\n *\n *\n */\n#vert_definitions\nvec3 calculateOffset(vec3 ID) {\n    #vert_applications\n    return vec3(0.0);\n}\n\n/**\n * Writes the position of the vertex onto the screen.\n * Passes texture coordinate and normal attributes as varyings\n * and passes the position attribute through position pipeline.\n *\n * @method main\n * @private\n *\n *\n */\nvoid main() {\n    v_textureCoordinate = a_texCoord;\n    vec3 invertedNormals = a_normals + (u_normals.x < 0.0 ? calculateOffset(u_normals) * 2.0 - 1.0 : vec3(0.0));\n    invertedNormals.y *= -1.0;\n    v_normal = transpose_3_2(mat3(inverse_2_1(u_transform))) * invertedNormals;\n    vec3 offsetPos = a_pos + calculateOffset(u_positionOffset);\n    gl_Position = applyTransform(vec4(offsetPos, 1.0));\n}\n",
-    fragment: "#define GLSLIFY 1\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Placeholder for fragmentShader  chunks to be templated in.\n * Used for normal mapping, gloss mapping and colors.\n * \n * @method applyMaterial\n * @private\n *\n *\n */\n\n#float_definitions\nfloat applyMaterial_1_0(float ID) {\n    #float_applications\n    return 1.;\n}\n\n#vec3_definitions\nvec3 applyMaterial_1_0(vec3 ID) {\n    #vec3_applications\n    return vec3(0);\n}\n\n#vec4_definitions\nvec4 applyMaterial_1_0(vec4 ID) {\n    #vec4_applications\n\n    return vec4(0);\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates the intensity of light on a surface.\n *\n * @method applyLight\n * @private\n *\n */\nvec4 applyLight_2_1(in vec4 baseColor, in vec3 normal, in vec4 glossiness, int numLights, vec3 ambientColor, vec3 eyeVector, mat4 lightPosition, mat4 lightColor, vec3 v_position) {\n    vec3 diffuse = vec3(0.0);\n    bool hasGlossiness = glossiness.a > 0.0;\n    bool hasSpecularColor = length(glossiness.rgb) > 0.0;\n\n    for(int i = 0; i < 4; i++) {\n        if (i >= numLights) break;\n        vec3 lightDirection = normalize(lightPosition[i].xyz - v_position);\n        float lambertian = max(dot(lightDirection, normal), 0.0);\n\n        if (lambertian > 0.0) {\n            diffuse += lightColor[i].rgb * baseColor.rgb * lambertian;\n            if (hasGlossiness) {\n                vec3 halfVector = normalize(lightDirection + eyeVector);\n                float specularWeight = pow(max(dot(halfVector, normal), 0.0), glossiness.a);\n                vec3 specularColor = hasSpecularColor ? glossiness.rgb : lightColor[i].rgb;\n                diffuse += specularColor * specularWeight * lambertian;\n            }\n        }\n\n    }\n\n    return vec4(ambientColor + diffuse, baseColor.a);\n}\n\n\n\n\n\n/**\n * Writes the color of the pixel onto the screen\n *\n * @method main\n * @private\n *\n *\n */\nvoid main() {\n    vec4 material = u_baseColor.r >= 0.0 ? u_baseColor : applyMaterial_1_0(u_baseColor);\n\n    /**\n     * Apply lights only if flat shading is false\n     * and at least one light is added to the scene\n     */\n    bool lightsEnabled = (u_flatShading == 0.0) && (u_numLights > 0.0 || length(u_ambientLight) > 0.0);\n\n    vec3 normal = normalize(v_normal);\n    vec4 glossiness = u_glossiness.x < 0.0 ? applyMaterial_1_0(u_glossiness) : u_glossiness;\n\n    vec4 color = lightsEnabled ?\n    applyLight_2_1(material, normalize(v_normal), glossiness,\n               int(u_numLights),\n               u_ambientLight * u_baseColor.rgb,\n               normalize(v_eyeVector),\n               u_lightPosition,\n               u_lightColor,   \n               v_position)\n    : material;\n\n    gl_FragColor = color;\n    gl_FragColor.a *= u_opacity;   \n}\n"
+    fragment: "#define GLSLIFY 1\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Placeholder for fragmentShader  chunks to be templated in.\n * Used for normal mapping, gloss mapping and colors.\n * \n * @method applyMaterial\n * @private\n *\n *\n */\n\n#float_definitions\nfloat applyMaterial_2_0(float ID) {\n    #float_applications\n    return 1.;\n}\n\n#vec3_definitions\nvec3 applyMaterial_2_0(vec3 ID) {\n    #vec3_applications\n    return vec3(0);\n}\n\n#vec4_definitions\nvec4 applyMaterial_2_0(vec4 ID) {\n    #vec4_applications\n\n    return vec4(0);\n}\n\n\n\n/**\n * The MIT License (MIT)\n * \n * Copyright (c) 2015 Famous Industries Inc.\n * \n * Permission is hereby granted, free of charge, to any person obtaining a copy\n * of this software and associated documentation files (the \"Software\"), to deal\n * in the Software without restriction, including without limitation the rights\n * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n * copies of the Software, and to permit persons to whom the Software is\n * furnished to do so, subject to the following conditions:\n * \n * The above copyright notice and this permission notice shall be included in\n * all copies or substantial portions of the Software.\n * \n * THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n * THE SOFTWARE.\n */\n\n/**\n * Calculates the intensity of light on a surface.\n *\n * @method applyLight\n * @private\n *\n */\nvec4 applyLight_1_1(in vec4 baseColor, in vec3 normal, in vec4 glossiness, int numLights, vec3 ambientColor, vec3 eyeVector, mat4 lightPosition, mat4 lightColor, vec3 v_position) {\n    vec3 diffuse = vec3(0.0);\n    bool hasGlossiness = glossiness.a > 0.0;\n    bool hasSpecularColor = length(glossiness.rgb) > 0.0;\n\n    for(int i = 0; i < 4; i++) {\n        if (i >= numLights) break;\n        vec3 lightDirection = normalize(lightPosition[i].xyz - v_position);\n        float lambertian = max(dot(lightDirection, normal), 0.0);\n\n        if (lambertian > 0.0) {\n            diffuse += lightColor[i].rgb * baseColor.rgb * lambertian;\n            if (hasGlossiness) {\n                vec3 halfVector = normalize(lightDirection + eyeVector);\n                float specularWeight = pow(max(dot(halfVector, normal), 0.0), glossiness.a);\n                vec3 specularColor = hasSpecularColor ? glossiness.rgb : lightColor[i].rgb;\n                diffuse += specularColor * specularWeight * lambertian;\n            }\n        }\n\n    }\n\n    return vec4(ambientColor + diffuse, baseColor.a);\n}\n\n\n\n\n\n/**\n * Writes the color of the pixel onto the screen\n *\n * @method main\n * @private\n *\n *\n */\nvoid main() {\n    vec4 material = u_baseColor.r >= 0.0 ? u_baseColor : applyMaterial_2_0(u_baseColor);\n\n    /**\n     * Apply lights only if flat shading is false\n     * and at least one light is added to the scene\n     */\n    bool lightsEnabled = (u_flatShading == 0.0) && (u_numLights > 0.0 || length(u_ambientLight) > 0.0);\n\n    vec3 normal = normalize(v_normal);\n    vec4 glossiness = u_glossiness.x < 0.0 ? applyMaterial_2_0(u_glossiness) : u_glossiness;\n\n    vec4 color = lightsEnabled ?\n    applyLight_1_1(material, normalize(v_normal), glossiness,\n               int(u_numLights),\n               u_ambientLight * u_baseColor.rgb,\n               normalize(v_eyeVector),\n               u_lightPosition,\n               u_lightColor,   \n               v_position)\n    : material;\n\n    gl_FragColor = color;\n    gl_FragColor.a *= u_opacity;   \n}\n"
 };
 
 module.exports = shaders;
@@ -15643,36 +15643,36 @@ var postitContent = '<div> \
 
 function PostitNode(node, obj, options, app) {
 
-    var that = this;
-    //Call parent constructor
-    this.node = node;
-    this.parent = app;
+  var that = this;
+  //Call parent constructor
+  this.node = node;
+  this.parent = app;
 
-    this.postWidth = options.width;
-    this.postHeight = options.height;
-    this.seqId = obj.postitID;
+  this.postWidth = options.width;
+  this.postHeight = options.height;
+  this.seqId = obj.postitID;
 
-    this.node.setSizeMode(1, 1, 1);
-    this.node.setAbsoluteSize(this.postWidth, this.postHeight, 5);
+  this.node.setSizeMode(1, 1, 1);
+  this.node.setAbsoluteSize(this.postWidth, this.postHeight, 5);
 
-    this.node.setOrigin(0.5, 0.5, 0);
-    this.rotation = new Rotation(this.node);
-    this.rotation.set(0, 0, 0);
+  this.node.setOrigin(0.5, 0.5, 0);
+  this.rotation = new Rotation(this.node);
+  this.rotation.set(0, 0, 0);
 
-    this.postitPosition = new Position(this.node);
-    this.postitPosition.set(0, 0, 500);
+  this.postitPosition = new Position(this.node);
+  this.postitPosition.set(0, 0, 500);
 
-    this.opacityTransitionable = new Transitionable(0);
-    this.node.setOpacity(this.opacityTransitionable.get());
+  this.opacityTransitionable = new Transitionable(0);
+  this.node.setOpacity(this.opacityTransitionable.get());
 
-    this.frontNode = this.node.addChild();
-    this.backNode = this.node.addChild();
+  this.frontNode = this.node.addChild();
+  this.backNode = this.node.addChild();
 
-    this.backNode.setSizeMode('absolute', 'absolute').setAbsoluteSize(this.postWidth, this.postHeight).setPosition(0, 0, 0).setOrigin(0.5, 0.5, 0).setRotation(0, Math.PI, 0);
+  this.backNode.setSizeMode('absolute', 'absolute').setAbsoluteSize(this.postWidth, this.postHeight).setPosition(0, 0, 0).setOrigin(0.5, 0.5, 0).setRotation(0, Math.PI, 0);
 
-    this.cyanDIV = new DOMElement(this.backNode, {
-        id: "Postit-Back" + this.seqId,
-        content: '<div> \
+  this.cyanDIV = new DOMElement(this.backNode, {
+    id: "Postit-Back" + this.seqId,
+    content: '<div> \
                     <div> \
                       <span style="font-weight:bold;"> Creator : </span> \
                       <span> demo </span> </br> \
@@ -15683,174 +15683,71 @@ function PostitNode(node, obj, options, app) {
                       <span>' + obj.creationDate + '</span> \
                     </div> \
                   </div>',
-        properties: {
-            'background-color': 'rgb(189, 239, 239)',
-            'padding': '5px 5px 5px 5px'
-        }
-    });
+    properties: {
+      'background-color': 'rgb(189, 239, 239)',
+      'padding': '5px 5px 5px 5px'
+    }
+  });
 
-    this.cyanDIV.setProperty('font-family', '"Lato",arial,sans-serif');
-    this.cyanDIV.setProperty('font-size', '80%');
+  this.cyanDIV.setProperty('font-family', '"Lato",arial,sans-serif');
+  this.cyanDIV.setProperty('font-size', '80%');
 
-    this.contentNode = this.frontNode.addChild();
-    this.headerNode = this.frontNode.addChild();
+  this.contentNode = this.frontNode.addChild();
+  this.headerNode = this.frontNode.addChild();
 
-    this.postitData = obj;
+  this.postitData = obj;
 
-    this.headerNode.setSizeMode('relative', 'relative', 'relative').setProportionalSize(1, 0.15, 1).setPosition(0, 0, 10);
+  this.headerNode.setSizeMode('relative', 'relative', 'relative').setProportionalSize(1, 0.15, 1).setPosition(0, 0, 10);
 
-    this.contentNode.setSizeMode('relative', 'relative', 'relative').setProportionalSize(1, 1).setPosition(0, 0, 5);
+  this.contentNode.setSizeMode('relative', 'relative', 'relative').setProportionalSize(1, 1).setPosition(0, 0, 5);
 
-    this.el = new DOMElement(node);
-    this.el.setProperty('background-color', 'rgb(240, 232, 174)');
-    this.el.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
-    this.el.setProperty('font-size', '140%');
-    this.el.setProperty('box-shadow', '5px 5px 7px rgba(33,33,33,.7)');
+  this.el = new DOMElement(node);
+  this.el.setProperty('background-color', 'rgb(240, 232, 174)');
+  this.el.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
+  this.el.setProperty('font-size', '140%');
+  this.el.setProperty('box-shadow', '5px 5px 7px rgba(33,33,33,.7)');
 
-    this.elheader = new DOMElement(this.headerNode);
-    this.elheader.setAttribute("id", "Postit-Header" + this.seqId);
-    this.elheader.setProperty('background-color', 'rgb(240, 232, 174)');
-    this.elheader.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
-    this.elheader.setProperty('font-size', '160%');
-    this.elheader.setProperty('font-weight', 'bold');
-    this.elheader.setProperty('line-height', '1');
-    this.elheader.setProperty('padding-left', '5px');
-    this.elheader.setProperty('padding-right', '5px');
-    this.elheader.setContent(headerContentPre + headerContentPost);
-    this.headerRef = null;
+  this.elheader = new DOMElement(this.headerNode);
+  this.elheader.setAttribute("id", "Postit-Header" + this.seqId);
+  this.elheader.setProperty('background-color', 'rgb(240, 232, 174)');
+  this.elheader.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
+  this.elheader.setProperty('font-size', '160%');
+  this.elheader.setProperty('font-weight', 'bold');
+  this.elheader.setProperty('line-height', '1');
+  this.elheader.setProperty('padding-left', '5px');
+  this.elheader.setProperty('padding-right', '5px');
+  this.elheader.setContent(headerContentPre + headerContentPost);
+  this.headerRef = null;
 
-    this.elcontent = new DOMElement(this.contentNode);
-    this.elcontent.setAttribute("id", "Postit-Content" + this.seqId);
-    this.elcontent.setProperty('background-color', 'rgb(246, 240, 198)');
-    this.elcontent.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
-    this.elcontent.setProperty('font-size', '140%');
-    this.elcontent.setProperty('padding-left', '5px');
-    this.elcontent.setProperty('padding-top', options.height * 0.2 + 'px');
-    //this.elcontent.setProperty('padding-top','15px');
-    this.elcontent.setContent(postitContent);
-    this.contentRef = null;
+  this.elcontent = new DOMElement(this.contentNode);
+  this.elcontent.setAttribute("id", "Postit-Content" + this.seqId);
+  this.elcontent.setProperty('background-color', 'rgb(246, 240, 198)');
+  this.elcontent.setProperty('font-family', '"Reenie Beanie",arial,sans-serif');
+  this.elcontent.setProperty('font-size', '140%');
+  this.elcontent.setProperty('padding-left', '5px');
+  this.elcontent.setProperty('padding-top', options.height * 0.2 + 'px');
+  //this.elcontent.setProperty('padding-top','15px');
+  this.elcontent.setContent(postitContent);
+  this.contentRef = null;
 
-    var id = this.node.addComponent({
-        onUpdate: function onUpdate(time) {
-            // Every frame, query transitionable state and set node opacity accordingly
-            var newOpacity = that.opacityTransitionable.get();
-            that.node.setOpacity(newOpacity);
-            if (that.opacityTransitionable.isActive()) that.node.requestUpdate(id);
-        }
-    });
+  var id = this.node.addComponent({
+    onUpdate: function onUpdate(time) {
+      // Every frame, query transitionable state and set node opacity accordingly
+      var newOpacity = that.opacityTransitionable.get();
+      that.node.setOpacity(newOpacity);
+      if (that.opacityTransitionable.isActive()) that.node.requestUpdate(id);
+    }
+  });
 
-    this.node.requestUpdate(id);
+  this.node.requestUpdate(id);
 
-    this.editMode = false;
+  this.editMode = false;
 
-    /*
-        var myComponent = {
-        onReceive: function(event, payload) {
-            console.log(
-                'Received ' + event + ' event!'
-                );
-            }
-        };
-    */
+  //Out of order nodes are positioned manually by user through dragging.
+  //Out of order behaviour can be reset by clickign on the grid icon
+  this.isOutofOrder = false;
 
-    this.node.mousePressStatus = false;
-    this.node.mousePressPos = null;
-
-    this.headerNode.addUIEvent('mousedown');
-    this.headerNode.addUIEvent('mouseup');
-    this.headerNode.addUIEvent('mouseenter');
-    this.headerNode.addUIEvent('mouseleave');
-    this.headerNode.addUIEvent('mousemove');
-
-    this.headerNode.onReceive = function (event, payload) {
-
-        //console.log(
-        //    'Received ' + event + ' event!'
-        //    );
-        //console.log(payload);
-
-        if (event === 'mousedown') {
-
-            this.mousePressStatus = true;
-            this.mousePressPos = payload;
-            console.log("mousedown");
-            console.log(payload);
-        }
-
-        if (event === 'mouseup') {
-
-            this.mousePressStatus = false;
-            this.mousePressPos = null;
-            //console.log("mouseup");
-            //console.log(payload);
-        }
-
-        if (event === 'mousemove') {
-
-            var e = payload;
-            var moveDeltaPosition = [e.offsetX, e.offsetY];
-            //var moveDeltaPosition = [(e.offsetX || e.clientX - $(e.target).offset().left + window.pageXOffset ) , (e.offsetY || e.clientY - $(e.target).offset().top + window.pageYOffset )];
-
-            //console.log(payload);
-        }
-
-        if (event === 'mouseleave') {
-
-            if (this.mousePressStatus) {
-
-                console.log("left while dragging");
-
-                var tempX = that.postitPosition.getX() - payload.offsetX;
-                var tempY = that.postitPosition.getY() - payload.offsetY;
-
-                console.log("tempX : " + tempX);
-                console.log("tempY : " + tempY);
-
-                that.postitPosition.set(tempX, tempY);
-            }
-        }
-    };
-
-    //Out of order nodes are positioned manually by user through dragging.
-    //Out of order behaviour can be reset by clickign on the grid icon
-    this.isOutofOrder = false;
-
-    var that = this;
-    /*
-        this.gestures = new GestureHandler(this.frontNode);
-        this.gestures.on({
-            event: 'drag',
-            points: 2,
-            threshold: 10
-        }, function(e){
-    
-            if(e.status == "start"){
-              console.log("dragging start")
-                that.parent.dragStatus = 1;
-            }
-    
-            if(e.status == "end"){
-              console.log("dragging end")
-                that.parent.dragStatus = 0;
-            }
-    
-            if(e.status == "move"){
-    
-              if(that.parent.dragStatus){
-    
-                var tempY = that.postitPosition.getY() + e.centerDelta.y;
-                var tempX = that.postitPosition.getX() + e.centerDelta.x;
-                that.postitPosition.set(tempX, tempY );
-    
-                that.isOutofOrder = true;
-    
-              }
-    
-            }
-    
-        });
-    
-    */
+  var that = this;
 }
 
 // Extend the prototype
@@ -15858,99 +15755,99 @@ PostitNode.prototype = Object.create(Node.prototype);
 
 PostitNode.prototype.display = function display() {
 
-    this.baseDIV = new DOMElement(this, {
-        id: 'postit',
-        properties: {
-            'background-color': '#ffc',
-            'z-index': 5
-        }
-    });
+  this.baseDIV = new DOMElement(this, {
+    id: 'postit',
+    properties: {
+      'background-color': '#ffc',
+      'z-index': 5
+    }
+  });
 };
 
 PostitNode.prototype.getSeq = function getSeq() {
 
-    return this.seqId;
+  return this.seqId;
 };
 
 PostitNode.prototype.getNode = function getNode() {
 
-    return this.node;
+  return this.node;
 };
 
 PostitNode.prototype.place = function place(xpos, ypos, zpos) {
 
-    var that = this;
+  var that = this;
 
-    this.postitPosition.set(xpos, ypos, zpos);
+  this.postitPosition.set(xpos, ypos, zpos);
 
-    this.opacityTransitionable.set(1, { duration: 500 }, function () {
+  this.opacityTransitionable.set(1, { duration: 500 }, function () {
 
-        that.headerRef = $("#Postit-Header" + that.seqId);
-        that.contentRef = $("#Postit-Content" + that.seqId);
+    that.headerRef = $("#Postit-Header" + that.seqId);
+    that.contentRef = $("#Postit-Content" + that.seqId);
 
-        $(that.headerRef).hover(function () {
-            if ($(this).find("textarea").val().length > 0) {
-                $(this).find(".icons").stop().fadeIn();
-            }
-        }, function () {
-            if ($(this).find("textarea").val().length > 0) {
-                $(this).find(".icons").stop().fadeOut();
-            }
-        });
-
-        $(that.headerRef).find('.edit').on('click', function () {
-            if (that.editMode) {
-
-                that.editMode = false;
-
-                $(that.headerRef).find("textarea").attr("readonly", "readonly");
-                $(that.contentRef).find("textarea").attr("readonly", "readonly");
-                $(this).css("opacity", 0.5);
-            } else {
-
-                that.editMode = true;
-
-                $(that.headerRef).find("textarea").removeAttr("readonly");
-                $(that.contentRef).find("textarea").removeAttr("readonly");
-                $(this).css("opacity", 1);
-            }
-        });
-
-        $(that.headerRef).find('.delete').on('click', function () {
-
-            that.parent.emit("del", { seqno: that.seqId });
-        });
-
-        $(that.headerRef).find('.flip').on('click', function () {
-
-            that.rotation.set(0, Math.PI, 0, { duration: 1000 });
-        });
-
-        $('body').on('click', "#Postit-Back" + that.seqId, function () {
-
-            that.rotation.set(0, 0, 0, { duration: 1000 });
-        });
+    $(that.headerRef).hover(function () {
+      if ($(this).find("textarea").val().length > 0) {
+        $(this).find(".icons").stop().fadeIn();
+      }
+    }, function () {
+      if ($(this).find("textarea").val().length > 0) {
+        $(this).find(".icons").stop().fadeOut();
+      }
     });
+
+    $(that.headerRef).find('.edit').on('click', function () {
+      if (that.editMode) {
+
+        that.editMode = false;
+
+        $(that.headerRef).find("textarea").attr("readonly", "readonly");
+        $(that.contentRef).find("textarea").attr("readonly", "readonly");
+        $(this).css("opacity", 0.5);
+      } else {
+
+        that.editMode = true;
+
+        $(that.headerRef).find("textarea").removeAttr("readonly");
+        $(that.contentRef).find("textarea").removeAttr("readonly");
+        $(this).css("opacity", 1);
+      }
+    });
+
+    $(that.headerRef).find('.delete').on('click', function () {
+
+      that.parent.emit("del", { seqno: that.seqId });
+    });
+
+    $(that.headerRef).find('.flip').on('click', function () {
+
+      that.rotation.set(0, Math.PI, 0, { duration: 1000 });
+    });
+
+    $('body').on('click', "#Postit-Back" + that.seqId, function () {
+
+      that.rotation.set(0, 0, 0, { duration: 1000 });
+    });
+  });
 };
 
 PostitNode.prototype.shift = function shift(xpos, ypos, zpos) {
 
-    this.postitPosition.set(xpos, ypos, zpos, { duration: 500 });
+  this.postitPosition.set(xpos, ypos, zpos, { duration: 500 });
 };
 
 PostitNode.prototype.remove = function remove() {
 
-    this.opacityTransitionable.set(1, { duration: 500 });
+  this.opacityTransitionable.set(1, { duration: 500 });
 };
 
 PostitNode.prototype.checkOutOfOrder = function checkOutOfOrder() {
 
-    return this.isOutofOrder;
+  return this.isOutofOrder;
 };
 
 PostitNode.prototype.resetOutOfOrder = function resetOutOfOrder() {
 
-    this.isOutofOrder = false;
+  this.isOutofOrder = false;
 };
 
 PostitNode.prototype.move = function move() {};
