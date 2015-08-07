@@ -52,7 +52,8 @@ function AppNode(scene) {
     this.postitPanelDiv = new DOMElement(this.postitBasePanel, {
        id : 'postitBasePanel',
        properties:{
-         'background-color':'rgb(95, 89, 89)',
+         //'background-color':'rgb(95, 89, 89)',
+         'background-color':'cyan',
          'overflow' : 'hidden'
     //     'z-index' : -1
        }
@@ -62,6 +63,7 @@ function AppNode(scene) {
        id : 'postitContainerPanel',
        properties:{
          'background-color':'rgb(95, 89, 89)',
+         //'background-color':'blue',
 
          'z-index' : 1
        }
@@ -83,8 +85,17 @@ function AppNode(scene) {
 
           if(e.status == "move"){
 
+              console.log("Pos Y : " + that.postitContainerPanelPos.getY());
+              console.log("Pos Center Delta Y : " + e.centerDelta.y);
+
               var tempY = that.postitContainerPanelPos.getY() + e.centerDelta.y;
-              that.postitContainerPanelPos.set(0, tempY );
+
+              var tempYLimit =  that.newYSize - LayoutManager.getPostitPanelHeight()
+
+              if(tempY < 0 && (Math.abs(tempY) <= Math.abs(tempYLimit) ) ) {
+                  that.postitContainerPanelPos.set(0, tempY );
+              }
+
             //  console.log("New y pos " + tempY);
 
           }
@@ -92,8 +103,47 @@ function AppNode(scene) {
         }
 
     });
-    
 
+
+    this.addComponent({
+        onSizeChange: function(sizew,sizeh){
+
+          //that.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),1 );
+          //that.setAbsoluteSize(LayoutManager.getAppDimensionWidth(), LayoutManager.getAppDimensionHeight() - LayoutManager.getAppDimensionHeaderHeight());
+          that.postitBasePanel.setAbsoluteSize(1, LayoutManager.getPostitPanelHeight(),0 );
+          //that.postitContainerPanel.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),1 );
+
+          if(LayoutManager.checkChangeInPostitPerRow()){
+
+            for(var i = 0; i < that.postitEntries.length ; i++){
+
+              var posArray = LayoutManager.getPostitPosition(i+1);
+
+              console.log("Position for Postit : " + i);
+              console.log(posArray);
+
+
+              //if(!that.postitEntries[i].checkOutOfOrder()){
+                  that.postitEntries[i].shift(posArray[0],posArray[1],posArray[2]);
+              //}
+
+            }
+
+            if(that.newYSize < LayoutManager.getPostitContainerPanelHeight(that.postitEntries.length)){
+
+                that.newYSize = LayoutManager.getPostitContainerPanelHeight(that.postitEntries.length);
+
+                that.postitContainerPanel.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), that.newYSize,1 );
+
+            }
+
+          }
+
+
+
+
+        }
+    });
 
 
 }
@@ -109,16 +159,27 @@ AppNode.prototype.initNode = function initNode(){
   this.loginAndStatusPanel.initPanel();
   this.initEvents();
 
+
+/*
   this.postitBasePanel.setSizeMode(1,1,1)
     .setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),0 )
     .setPosition(0, LayoutManager.getPostitPanelHeightOffset(),0);
     //.setPosition(0, 100,0);
+*/
 
-  this.postitContainerPanel.setSizeMode(1,1,1)
-    .setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),0 )
+  this.postitBasePanel.setSizeMode('relative','absolute','absolute')
+    .setAbsoluteSize(1, LayoutManager.getPostitPanelHeight(),0 )
+    .setPosition(0, LayoutManager.getPostitPanelHeightOffset(),0);
+
+
+  this.postitContainerPanel.setSizeMode('relative','absolute','absolute')
+    .setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),1 )
     .setPosition(0, 0,0);
 
   this.postitPanelDiv.setProperty('display','none');
+
+  //Y SIze of COntainer panel. It can grow and shrink based on the number of postit notes added
+  this.newYSize = LayoutManager.getPostitPanelHeight();
 
 
 
@@ -194,11 +255,19 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj){
         this.postitEntries[i].shift(posArray[0],posArray[1],posArray[2]);
     }
 
-
-
   }
 
   this.loginAndStatusPanel.increment();
+
+  this.newYSize = LayoutManager.getPostitContainerPanelHeight(this.postitEntries.length);
+
+  if(this.newYSize > LayoutManager.getPostitPanelHeight()){
+
+      this.postitContainerPanel.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), this.newYSize,1 );
+
+  }
+
+
 
   //Animate the movement of all the existing nodes
 
@@ -217,7 +286,7 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj){
 
 
 AppNode.prototype.deletePostit = function deletePostit(postitID){
-
+/*
   //Search for the child node with postitID in the postitEntries
   var toBeDeletedEntry = null;
   var toBeDeletedSeq = 0;
@@ -244,18 +313,65 @@ AppNode.prototype.deletePostit = function deletePostit(postitID){
 
     }
 
-    this.postitEntries.pop();
+
     this.postitContainerPanel.removeChild(toBeDeletedEntry.getNode());
+
+    this.postitEntries.pop();
 
   }
 
   this.loginAndStatusPanel.decrement();
 
+  console.log(this.postitEntries);
+*/
   //Remove the child node from the app node
 
   //Remove the entry from the postitEntries array
 
   //Animate all the child nodes to rearrange them without the removed node
+
+  //Search for the child node with postitID in the postitEntries
+
+  var toBeDeletedSeq = -1;
+
+  for(var i = 0 ; i < this.postitEntries.length ; i++){
+    if(this.postitEntries[i].getSeq() == postitID){
+      toBeDeletedSeq = i;
+      break;
+    }
+  }
+
+
+  if(toBeDeletedSeq != -1){
+
+    this.postitEntries[toBeDeletedSeq].remove();
+
+    this.postitContainerPanel.removeChild(this.postitEntries[toBeDeletedSeq].getNode());
+    this.postitEntries[toBeDeletedSeq] = null;
+
+
+
+
+    for(var i = toBeDeletedSeq ; i < (this.postitEntries.length - 1) ; i++){
+
+      var posArray = LayoutManager.getPostitPosition(i+1);
+
+      this.postitEntries[i+1].shift(posArray[0],posArray[1],posArray[2]);
+
+      this.postitEntries[i] = this.postitEntries[i+1];
+
+    }
+
+
+    //this.postitContainerPanel.removeChild(toBeDeletedEntry.getNode());
+
+    this.postitEntries.pop();
+
+  }
+
+  this.loginAndStatusPanel.decrement();
+
+  console.log(this.postitEntries);
 
 }
 

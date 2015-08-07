@@ -36,6 +36,8 @@ function PostitNode(node,obj,options,app) {
     this.node = node
     this.parent = app;
 
+    this.backNode = this.node.addChild();
+
     this.postWidth = options.width;
     this.postHeight = options.height;
     this.seqId = obj.postitID;
@@ -58,7 +60,13 @@ function PostitNode(node,obj,options,app) {
 
 
     this.frontNode = this.node.addChild();
-    this.backNode = this.node.addChild();
+    //this.backNode = this.node.addChild();
+    /*
+    this.wontNode = this.node.addChild();
+    this.shakNode = this.node.addChild();
+    this.dakNode = this.node.addChild();
+    this.lakNode = this.node.addChild();
+*/
 
     this.backNode.setSizeMode('absolute', 'absolute')
           .setAbsoluteSize(this.postWidth, this.postHeight)
@@ -259,7 +267,13 @@ PostitNode.prototype.place = function place(xpos,ypos,zpos){
 
 PostitNode.prototype.shift = function shift(xpos,ypos,zpos){
 
-  this.postitPosition.set(xpos,ypos,zpos,{duration : 500});
+  if((this.postitPosition.getX() != xpos) || (this.postitPosition.getY() != ypos)  ) {
+
+    this.postitPosition.set(xpos,ypos,zpos,{duration : 500});
+
+  }
+
+
 
 }
 
@@ -267,6 +281,19 @@ PostitNode.prototype.shift = function shift(xpos,ypos,zpos){
 PostitNode.prototype.remove = function remove(){
 
   this.opacityTransitionable.set(1, { duration: 500 } );
+
+
+/*
+  this.node.removeChild(this.frontNode);
+  this.node.removeChild(this.backNode);
+
+  this.node.removeChild(this.wontNode);
+  this.node.removeChild(this.shakNode);
+  this.node.removeChild(this.dakNode);
+  this.node.removeChild(this.lakNode);
+*/
+
+
 
 }
 

@@ -45,12 +45,7 @@ function App(scene) {
     }
 
 
-    setTimeout(function(){
 
-        console.log("Fired");
-        scene.emit("eventoo",{data : "payload"});
-
-    },5000);
 
     //headerNode.setSizeMode('relative','relative','relative')
     //  .setPosition(0,0)
@@ -65,12 +60,13 @@ function App(scene) {
       .setAbsoluteSize(LayoutManager.getAppDimensionWidth(), LayoutManager.getAppDimensionHeight() - LayoutManager.getAppDimensionHeaderHeight());
 
 
+
     rootNode.addComponent({
         onSizeChange: function(sizew,sizeh){
-          console.log(sizew,sizeh);
+          //console.log(sizew,sizeh);
 
           LayoutManager.calcAppDimensions();
-          console.log("LayoutManager width " + LayoutManager.getAppDimensionWidth());
+          //console.log("LayoutManager width " + LayoutManager.getAppDimensionWidth());
 
 
 
@@ -80,8 +76,9 @@ function App(scene) {
           headerHeight = APP_HEIGHT * 0.1;
 
           headerNode.setAbsoluteSize(LayoutManager.getAppDimensionWidth(), LayoutManager.getAppDimensionHeaderHeight());
-          appNode.setPosition(0,LayoutManager.getAppDimensionHeaderHeight()).setAbsoluteSize(LayoutManager.getAppDimensionWidth(), LayoutManager.getAppDimensionHeight() - LayoutManager.getAppDimensionHeaderHeight());
 
+          appNode.setPosition(0,LayoutManager.getAppDimensionHeaderHeight()).setAbsoluteSize(LayoutManager.getAppDimensionWidth(), LayoutManager.getAppDimensionHeight() - LayoutManager.getAppDimensionHeaderHeight());
+          appNode.setAbsoluteSize(LayoutManager.getAppDimensionWidth(),LayoutManager.getAppDimensionHeight());
 
         }
     });

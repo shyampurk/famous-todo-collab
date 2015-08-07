@@ -37,6 +37,8 @@ var appLayoutObject = {
 
   postitPerRow : 0,
 
+  prevpostitPerRow : 0,
+
   postitInterColOffset : 100,
 
   postitWidth : 250,
@@ -64,9 +66,20 @@ LayoutManager.calcAppDimensions = function calcAppDimensions(){
   appDimensionObject.postitPanelWidth = appDimensionObject.appWidth;
   appDimensionObject.postitPanelHeight = appDimensionObject.appHeight * __POSTITBASEPANEL_HEIGHT_SIZE_PERCENT_;
 
+  appLayoutObject.prevpostitPerRow = appLayoutObject.postitPerRow;
+
   appLayoutObject.postitPerRow = Math.floor((appDimensionObject.appWidth - (appLayoutObject.postitXOffset * 2)) / (appLayoutObject.postitWidth + appLayoutObject.postitInterXOffset)) ;
 
-  appLayoutObject.postitInterXOffsetActual = ((appDimensionObject.appWidth - (appLayoutObject.postitXOffset * 2)) - (appLayoutObject.postitPerRow * appLayoutObject.postitWidth)) / (appLayoutObject.postitPerRow - 1);
+  if(appLayoutObject.postitPerRow > 1){
+
+    appLayoutObject.postitInterXOffsetActual = ((appDimensionObject.appWidth - (appLayoutObject.postitXOffset * 2)) - (appLayoutObject.postitPerRow * appLayoutObject.postitWidth)) / (appLayoutObject.postitPerRow - 1);
+
+  } else {
+
+    appLayoutObject.postitInterXOffsetActual = 0;
+    
+  }
+
 
 }
 
@@ -131,6 +144,21 @@ LayoutManager.getPostitPosition = function getPostitPosition(pSeq){
   var YPos =  appLayoutObject.postitYOffset + ((rowPos - 1) * appLayoutObject.postitInterYOffset) + ((rowPos - 1) * appLayoutObject.postitHeight);
 
   return [XPos , YPos , 500];
+
+}
+
+LayoutManager.getPostitContainerPanelHeight = function getPostitContainerPanelHeight(pCount){
+
+  var rowPos =  Math.ceil(pCount / appLayoutObject.postitPerRow);
+
+  return (2*appLayoutObject.postitYOffset) + ((rowPos - 1) * appLayoutObject.postitInterYOffset) + ((rowPos) * appLayoutObject.postitHeight);
+
+}
+
+
+LayoutManager.checkChangeInPostitPerRow = function checkChangeInPostitPerRow(){
+
+  return (appLayoutObject.prevpostitPerRow == appLayoutObject.postitPerRow) ?  false :  true ;
 
 }
 
