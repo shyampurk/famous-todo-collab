@@ -80,6 +80,10 @@ function LoginAndStatusPanel(app) {
 
 		this.setMountPoint(1,0,0);
 
+		this.loginStatus = false;
+
+		this.currentXPos = 0;
+
 		__initEvents.call(this);
 
 }
@@ -89,7 +93,7 @@ LoginAndStatusPanel.prototype = Object.create(Node.prototype);
 
 LoginAndStatusPanel.prototype.initPanel = function initPanel(){
 
-  this.loginAndStatusPanelPosition.set(400,100,0);
+  this.loginAndStatusPanelPosition.set(LayoutManager.getLoginPageXOffset(),100,0);
   this.loginAndStatusPanelSize.setMode(1,1,1);
 
   this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getLoginPageHeight(),0);
@@ -106,9 +110,11 @@ LoginAndStatusPanel.prototype.doLogin = function doLogin(){
 	if(capturedUsername == loginUser && capturedPassword == loginPassword){
 
 	  _postLoginHandler.call(this);
+		this.loginStatus = true;
 		return true;
 
 	} else {
+		this.loginStatus = false;
 		return false;
 	}
 }
@@ -119,7 +125,7 @@ function _postLoginHandler(){
 
   $('#loginPanel').fadeOut(100);
 
-  this.loginAndStatusPanelPosition.set(400,10,0,{duration : 500});
+  this.loginAndStatusPanelPosition.set(this.currentXPos,10,0,{duration : 500});
 
   this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500},function(){
 
@@ -160,11 +166,11 @@ function __initEvents(){
 
 		$('#postitBasePanel').fadeOut(1000);
 
-		that.loginAndStatusPanelPosition.set(400,10,0,{duration : 500},function(){
+		that.loginAndStatusPanelPosition.set(that.currentXPos,10,0,{duration : 500},function(){
 
 			that.loginAndStatusDiv.setContent('');
 
-			that.loginAndStatusPanelPosition.set(400,100,0,{duration : 500},function(){
+			that.loginAndStatusPanelPosition.set(that.currentXPos,100,0,{duration : 500},function(){
 
 				that.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getLoginPageHeight(),0,{duration : 500},function(){
 
@@ -179,7 +185,7 @@ function __initEvents(){
 
 		});
 
-
+		that.loginStatus = false;
 
 	});
 
@@ -235,6 +241,23 @@ LoginAndStatusPanel.prototype.decrement = function decrement(){
 
 	this.postitCount--;
 	this.loginAndStatusDiv.setContent( menuHTMLPre + this.postitCount + menuHTMLPost + grabberHTML);
+
+}
+
+LoginAndStatusPanel.prototype.resize = function resize(){
+
+	this.currentXPos = LayoutManager.getLoginPageXOffset();
+
+	if(this.loginStatus){
+
+
+	} else {
+
+		this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getLoginPageHeight(),0);
+
+		this.loginAndStatusPanelPosition.set(this.currentXPos,100,0);
+	}
+
 
 }
 

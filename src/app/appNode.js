@@ -108,36 +108,38 @@ function AppNode(scene) {
     this.addComponent({
         onSizeChange: function(sizew,sizeh){
 
-          //that.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),1 );
-          //that.setAbsoluteSize(LayoutManager.getAppDimensionWidth(), LayoutManager.getAppDimensionHeight() - LayoutManager.getAppDimensionHeaderHeight());
+          that.loginAndStatusPanel.resize();
+
           that.postitBasePanel.setAbsoluteSize(1, LayoutManager.getPostitPanelHeight(),0 );
-          //that.postitContainerPanel.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),1 );
 
-          if(LayoutManager.checkChangeInPostitPerRow()){
+          if(that.loginStatus){
 
-            for(var i = 0; i < that.postitEntries.length ; i++){
+            if(LayoutManager.checkChangeInPostitPerRow()){
 
-              var posArray = LayoutManager.getPostitPosition(i+1);
+              for(var i = 0; i < that.postitEntries.length ; i++){
 
-              console.log("Position for Postit : " + i);
-              console.log(posArray);
+                var posArray = LayoutManager.getPostitPosition(i+1);
 
+                that.postitEntries[i].shift(posArray[0],posArray[1],posArray[2]);
 
-              //if(!that.postitEntries[i].checkOutOfOrder()){
-                  that.postitEntries[i].shift(posArray[0],posArray[1],posArray[2]);
-              //}
+              }
 
-            }
+              if(that.newYSize < LayoutManager.getPostitContainerPanelHeight(that.postitEntries.length)){
 
-            if(that.newYSize < LayoutManager.getPostitContainerPanelHeight(that.postitEntries.length)){
+                  that.newYSize = LayoutManager.getPostitContainerPanelHeight(that.postitEntries.length);
 
-                that.newYSize = LayoutManager.getPostitContainerPanelHeight(that.postitEntries.length);
+                  that.postitContainerPanel.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), that.newYSize,1 );
 
-                that.postitContainerPanel.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), that.newYSize,1 );
+              }
 
             }
+
+          } else {
+
+
 
           }
+
 
 
 
@@ -214,12 +216,7 @@ AppNode.prototype.initEvents = function initEvents(){
 
       $('#postitBasePanel').fadeIn(1000);
 
-      //var post = new PostitNode(100,100)
-
-      //var pt = that.postitContainerPanel.addChild(new PostitNode());
-      //pt.display();
-      //var pt = that.postitContainerPanel.addChild();
-
+      that.loginStatus = true;
 
     }
 
@@ -267,70 +264,10 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj){
 
   }
 
-
-
-  //Animate the movement of all the existing nodes
-
-  //Create the child node
-
-  //Create the DIV Element with postit style
-
-  //Populate the div element with the data
-
-  //Animate the child node and display it on top
-
-  //Add it to the postitEntries array
-
-
 }
 
 
 AppNode.prototype.deletePostit = function deletePostit(postitID){
-/*
-  //Search for the child node with postitID in the postitEntries
-  var toBeDeletedEntry = null;
-  var toBeDeletedSeq = 0;
-
-  for(var i = 0 ; i < this.postitEntries.length ; i++){
-    if(this.postitEntries[i].getSeq() == postitID){
-      toBeDeletedEntry = this.postitEntries[i];
-      toBeDeletedSeq = i;
-      break;
-    }
-  }
-
-  if(toBeDeletedEntry){
-
-    toBeDeletedEntry.remove();
-
-    for(var i = toBeDeletedSeq ; i < (this.postitEntries.length - 1) ; i++){
-
-      var posArray = LayoutManager.getPostitPosition(i+1);
-
-      this.postitEntries[i+1].shift(posArray[0],posArray[1],posArray[2]);
-
-      this.postitEntries[i] = this.postitEntries[i+1];
-
-    }
-
-
-    this.postitContainerPanel.removeChild(toBeDeletedEntry.getNode());
-
-    this.postitEntries.pop();
-
-  }
-
-  this.loginAndStatusPanel.decrement();
-
-  console.log(this.postitEntries);
-*/
-  //Remove the child node from the app node
-
-  //Remove the entry from the postitEntries array
-
-  //Animate all the child nodes to rearrange them without the removed node
-
-  //Search for the child node with postitID in the postitEntries
 
   var toBeDeletedSeq = -1;
 
@@ -422,9 +359,7 @@ AppNode.prototype.logoff = function logoff(){
 
   for(var i = 0 ; i < this.postitEntries.length ; i++){
 
-
     this.postitContainerPanel.removeChild(this.postitEntries[i].getNode());
-
 
   }
 
@@ -433,13 +368,4 @@ AppNode.prototype.logoff = function logoff(){
 
 }
 
-/*
-AppNode.prototype.onReceive = function onReceive(type, ev) {
-    //console.log(type + ' event received for ' + ev + ' !');
-    if (type === 'delete') {
-        console.log('Delete event received for ' + ev + ' !');
-    }
-
-};
-*/
 module.exports = AppNode;

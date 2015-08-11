@@ -5,6 +5,12 @@ var __HEADER_SIZE_PERCENT_ = 0.1;
 var __LOGINPANEL_WIDTH_SIZE_PERCENT_ = 0.25;
 var __LOGINPANEL_HEIGHT_SIZE_PERCENT_ = 0.2;
 
+var __LOGINPANEL_X_OFFSET_PERCENT_ = 0.9;
+
+
+var __LOGINPANEL_WIDTH_SIZE_THRESHOLD_ = 250;
+
+
 var __POSTITBASEPANEL_HEIGHT_SIZE_PERCENT_ = 0.8;
 
 
@@ -20,6 +26,7 @@ var appDimensionObject = {
   //Login Panel Width & Height
   loginPanelWidth : 0,
   loginPanelHeight : 0,
+  loginPanelXPos : 0,
 
   postitPanelWidth : 0,
   postitPanelheight : 0
@@ -61,7 +68,15 @@ LayoutManager.calcAppDimensions = function calcAppDimensions(){
   appDimensionObject.appHeaderHeight = appDimensionObject.appHeight * __HEADER_SIZE_PERCENT_;
 
   appDimensionObject.loginPanelWidth = appDimensionObject.appWidth * __LOGINPANEL_WIDTH_SIZE_PERCENT_;
+
+  if(appDimensionObject.loginPanelWidth <= __LOGINPANEL_WIDTH_SIZE_THRESHOLD_){
+    appDimensionObject.loginPanelWidth = __LOGINPANEL_WIDTH_SIZE_THRESHOLD_;
+  }
+
+
   appDimensionObject.loginPanelHeight = appDimensionObject.appHeight * __LOGINPANEL_HEIGHT_SIZE_PERCENT_;
+
+  appDimensionObject.loginPanelXPos = appDimensionObject.appWidth * __LOGINPANEL_X_OFFSET_PERCENT_;
 
   appDimensionObject.postitPanelWidth = appDimensionObject.appWidth;
   appDimensionObject.postitPanelHeight = appDimensionObject.appHeight * __POSTITBASEPANEL_HEIGHT_SIZE_PERCENT_;
@@ -77,7 +92,7 @@ LayoutManager.calcAppDimensions = function calcAppDimensions(){
   } else {
 
     appLayoutObject.postitInterXOffsetActual = 0;
-    
+
   }
 
 
@@ -113,6 +128,14 @@ LayoutManager.getLoginPageHeight = function getLoginPageHeight(){
   return appDimensionObject.loginPanelHeight;
 
 }
+
+LayoutManager.getLoginPageXOffset = function getLoginPageXOffset(){
+
+  return appDimensionObject.loginPanelXPos;
+
+}
+
+
 
 LayoutManager.getPostitPanelWidth = function getPostitPanelWidth(){
 

@@ -91,7 +91,7 @@ function App(scene) {
          //'line-height' : '35px',
          'padding-top' : '2.5vh',
          'text-align' : 'center',
-         'font-size' : '7.5vh'
+         'font-size' : '5vh'
        }
     });
 
