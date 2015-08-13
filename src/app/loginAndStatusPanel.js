@@ -125,7 +125,7 @@ function _postLoginHandler(){
 
   $('#loginPanel').fadeOut(100);
 
-  this.loginAndStatusPanelPosition.set(this.currentXPos,10,0,{duration : 500});
+  this.loginAndStatusPanelPosition.set(this.currentXPos,5,0,{duration : 500});
 
   this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500},function(){
 
@@ -247,6 +247,8 @@ LoginAndStatusPanel.prototype.decrement = function decrement(){
 LoginAndStatusPanel.prototype.resize = function resize(){
 
 	this.currentXPos = LayoutManager.getLoginPageXOffset();
+
+	this.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - 10,5,0);
 
 	if(this.loginStatus){
 
