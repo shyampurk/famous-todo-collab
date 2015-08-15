@@ -92,7 +92,8 @@ LayoutManager.calcAppDimensions = function calcAppDimensions(){
   } else {
 
     appLayoutObject.postitInterXOffsetActual = 0;
-
+    appLayoutObject.postitPerRow = 1;
+    
   }
 
 
@@ -165,6 +166,8 @@ LayoutManager.getPostitPosition = function getPostitPosition(pSeq){
   var XPos =  appLayoutObject.postitXOffset + ((colPos - 1) * appLayoutObject.postitInterXOffsetActual) + ((colPos - 1) * appLayoutObject.postitWidth);
 
   var YPos =  appLayoutObject.postitYOffset + ((rowPos - 1) * appLayoutObject.postitInterYOffset) + ((rowPos - 1) * appLayoutObject.postitHeight);
+
+  console.log("Sequence : " + pSeq + " XPos : " + XPos + " YPos : " + YPos);
 
   return [XPos , YPos , 500];
 

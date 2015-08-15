@@ -104,6 +104,8 @@ function AppNode(scene) {
 
     });
 
+    this.lastRecordedPostitPanelDimWidth = LayoutManager.getAppDimensionWidth();
+
 
     this.addComponent({
         onSizeChange: function(sizew,sizeh){
@@ -114,7 +116,9 @@ function AppNode(scene) {
 
           if(that.loginStatus){
 
-            if(LayoutManager.checkChangeInPostitPerRow()){
+            if(LayoutManager.checkChangeInPostitPerRow() ||  ( Math.abs(that.lastRecordedPostitPanelDimWidth - LayoutManager.getAppDimensionWidth() ) > 50 )  ){
+
+              that.lastRecordedPostitPanelDimWidth = LayoutManager.getAppDimensionWidth();
 
               for(var i = 0; i < that.postitEntries.length ; i++){
 
