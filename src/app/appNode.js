@@ -178,6 +178,7 @@ AppNode.prototype.initNode = function initNode(){
     .setPosition(0, LayoutManager.getPostitPanelHeightOffset(),0);
 
 
+
   this.postitContainerPanel.setSizeMode('relative','absolute','absolute')
     .setAbsoluteSize(LayoutManager.getPostitPanelWidth(), LayoutManager.getPostitPanelHeight(),1 )
     .setPosition(0, 0,0);

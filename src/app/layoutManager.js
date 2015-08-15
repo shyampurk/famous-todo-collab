@@ -23,6 +23,8 @@ var appDimensionObject = {
   //Application Header Height
   appHeaderHeight : 0,
 
+  initialAppHeaderHeight : 0,
+
   //Login Panel Width & Height
   loginPanelWidth : 0,
   loginPanelHeight : 0,
@@ -30,6 +32,7 @@ var appDimensionObject = {
 
   postitPanelWidth : 0,
   postitPanelheight : 0
+
 
 }
 
@@ -55,7 +58,11 @@ var appLayoutObject = {
 
 }
 
+var appStatus = {
 
+  initStatus : false,
+
+}
 
 var LayoutManager = {}
 
@@ -66,6 +73,11 @@ LayoutManager.calcAppDimensions = function calcAppDimensions(){
   appDimensionObject.appHeight = window.innerHeight;
 
   appDimensionObject.appHeaderHeight = appDimensionObject.appHeight * __HEADER_SIZE_PERCENT_;
+
+  if(!appStatus.initStatus){
+    appStatus.initStatus = true;
+    appDimensionObject.initialAppHeaderHeight = appDimensionObject.appHeaderHeight;
+  }
 
   appDimensionObject.loginPanelWidth = appDimensionObject.appWidth * __LOGINPANEL_WIDTH_SIZE_PERCENT_;
 
@@ -93,7 +105,7 @@ LayoutManager.calcAppDimensions = function calcAppDimensions(){
 
     appLayoutObject.postitInterXOffsetActual = 0;
     appLayoutObject.postitPerRow = 1;
-    
+
   }
 
 
@@ -153,7 +165,8 @@ LayoutManager.getPostitPanelHeight = function getPostitPanelHeight(){
 
 LayoutManager.getPostitPanelHeightOffset = function getPostitPanelHeightOffset(){
 
-  return appDimensionObject.appHeaderHeight * 0.5 + 10;
+  //return appDimensionObject.appHeaderHeight * 0.5 + 10;
+  return appDimensionObject.initialAppHeaderHeight * 0.5 + 10;
 
 }
 
@@ -166,8 +179,6 @@ LayoutManager.getPostitPosition = function getPostitPosition(pSeq){
   var XPos =  appLayoutObject.postitXOffset + ((colPos - 1) * appLayoutObject.postitInterXOffsetActual) + ((colPos - 1) * appLayoutObject.postitWidth);
 
   var YPos =  appLayoutObject.postitYOffset + ((rowPos - 1) * appLayoutObject.postitInterYOffset) + ((rowPos - 1) * appLayoutObject.postitHeight);
-
-  console.log("Sequence : " + pSeq + " XPos : " + XPos + " YPos : " + YPos);
 
   return [XPos , YPos , 500];
 

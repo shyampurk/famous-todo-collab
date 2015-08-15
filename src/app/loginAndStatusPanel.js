@@ -127,7 +127,7 @@ function _postLoginHandler(){
 
   this.loginAndStatusPanelPosition.set(this.currentXPos,5,0,{duration : 500});
 
-  this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getAppDimensionHeaderHeight() * 0.5 ,0,{duration : 500},function(){
+  this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getPostitPanelHeightOffset() - 10 ,0,{duration : 500},function(){
 
 
 
@@ -166,7 +166,7 @@ function __initEvents(){
 
 		$('#postitBasePanel').fadeOut(1000);
 
-		that.loginAndStatusPanelPosition.set(that.currentXPos,10,0,{duration : 500},function(){
+		that.loginAndStatusPanelPosition.set(that.currentXPos,5,0,{duration : 500},function(){
 
 			that.loginAndStatusDiv.setContent('');
 
@@ -251,6 +251,9 @@ LoginAndStatusPanel.prototype.resize = function resize(){
 	this.loginAndStatusPanelPosition.set(LayoutManager.getAppDimensionWidth() - 10,5,0);
 
 	if(this.loginStatus){
+
+		console.log("height offset: " + LayoutManager.getPostitPanelHeightOffset());
+		this.loginAndStatusPanelSize.setAbsolute(LayoutManager.getLoginPageWidth(),LayoutManager.getPostitPanelHeightOffset() - 10,0);
 
 
 	} else {
