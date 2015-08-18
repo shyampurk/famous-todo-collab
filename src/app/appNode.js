@@ -92,10 +92,16 @@ function AppNode(scene) {
 
               var tempYLimit =  that.newYSize - LayoutManager.getPostitPanelHeight()
 
+
               if(tempY < 0 && (Math.abs(tempY) <= Math.abs(tempYLimit) ) ) {
                   that.postitContainerPanelPos.set(0, tempY );
               }
 
+/*
+              if(tempY < 0  ) {
+                  that.postitContainerPanelPos.set(0, tempY );
+              }
+*/
             //  console.log("New y pos " + tempY);
 
           }
@@ -110,9 +116,27 @@ function AppNode(scene) {
     this.addComponent({
         onSizeChange: function(sizew,sizeh){
 
+          //Resize the login and status panel according to the new size limits
           that.loginAndStatusPanel.resize();
 
+          //Resize the base panel as per the new dimensions
           that.postitBasePanel.setAbsoluteSize(1, LayoutManager.getPostitPanelHeight(),0 );
+
+          console.log("Absolute size of container panel : " + that.postitContainerPanel.getAbsoluteSize()[1]);
+          console.log("Y Pos of container panel : " + that.postitContainerPanelPos.getY());
+
+          //Resize the container panel as per the new dimensions
+          if( (that.postitContainerPanel.getAbsoluteSize()[1] - Math.abs(that.postitContainerPanelPos.getY()) )   <  LayoutManager.getPostitPanelHeight() ){
+
+            var newhsize = that.postitContainerPanel.getAbsoluteSize()[1] + ( LayoutManager.getPostitPanelHeight()  -  (that.postitContainerPanel.getAbsoluteSize()[1] - Math.abs(that.postitContainerPanelPos.getY()) )  );
+            console.log("New Height : " + newhsize);
+
+            that.newYSize = newhsize;
+
+            that.postitContainerPanel.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), newhsize,1 );
+
+          }
+
 
           if(that.loginStatus){
 
