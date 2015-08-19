@@ -293,6 +293,19 @@ AppNode.prototype.addNewPostit = function addNewPostit(postitObj){
 
   }
 
+  //Resize the container panel if its bottom is exposed
+  if( (this.postitContainerPanel.getAbsoluteSize()[1] - Math.abs(this.postitContainerPanelPos.getY()) )   <  LayoutManager.getPostitPanelHeight() ){
+
+    var newhsize = this.postitContainerPanel.getAbsoluteSize()[1] + ( LayoutManager.getPostitPanelHeight()  -  (this.postitContainerPanel.getAbsoluteSize()[1] - Math.abs(this.postitContainerPanelPos.getY()) )  );
+    console.log("New Height : " + newhsize);
+
+    this.newYSize = newhsize;
+
+    this.postitContainerPanel.setAbsoluteSize(LayoutManager.getPostitPanelWidth(), newhsize,1 );
+
+  }
+
+
 }
 
 
